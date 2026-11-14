@@ -1,0 +1,88 @@
+{
+  "layout": {
+    "title": "江屯镇高标图",
+    "output_path": "D:/02_User_Files/02项目文件/20260116_LinkTool/LinkTool-ClaudeCode/test/02_WorkSpace/test.png",
+    "page_size": "A4",
+    "orientation": "landscape"
+  },
+  "layers": [
+    {
+      "id": "高标",
+      "feature_class": "D:/02_User_Files/02项目文件/20260116_LinkTool/LinkTool-ClaudeCode/test/01_DataBackup/三普耕地质量/江屯镇数据.gdb/高标",
+      "visible": true,
+      "renderer": {
+        "type": "graduated_colors",
+        "field": "Shape_Area",
+        "classification_method": "natural_breaks",
+        "class_count": 5,
+        "color_scheme": {
+            "start_color": [255, 255, 200, 80],
+            "end_color": [100, 50, 0, 80]
+        },
+        "outline_color": [100, 100, 100, 100],
+        "outline_width": 1
+      },
+      "labeling": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "边界",
+      "feature_class": "D:/02_User_Files/02项目文件/20260116_LinkTool/LinkTool-ClaudeCode/test/01_DataBackup/三普耕地质量/江屯镇数据.gdb/XZQJX",
+      "visible": true,
+      "renderer": {
+        "type": "simple",
+        "symbol": {
+          "type": "line",
+          "fill_color": [255, 200, 100, 80],
+          "outline_color": [255, 200, 100, 100],
+          "outline_width": 3
+        }
+      },
+      "labeling": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "行政区名",
+      "feature_class": "D:/02_User_Files/02项目文件/20260116_LinkTool/LinkTool-ClaudeCode/test/01_DataBackup/三普耕地质量/江屯镇数据.gdb/XZQ",
+      "visible": true,
+      "renderer": {
+        "type": "simple",
+        "symbol": {
+          "type": "polygon",
+          "fill_color": [255, 200, 100, 0],
+          "outline_color": [255, 200, 100, 0],
+          "outline_width": 3
+        }
+      },
+      "labeling": {
+        "enabled": true,
+        "field": "XZQMC",
+        "font": {
+          "family": "Arial",
+          "size": 12
+        },
+        "color": [0, 0, 0, 100],
+        "halo": {
+          "color": [255, 255, 255, 100],
+          "size": 1
+        }
+      }
+    }
+  ],
+  "map_elements": {
+    "north_arrow": {
+      "enabled": true,
+      "position": "top_left"
+    },
+    "legend": {
+      "enabled": true,
+      "position": "bottom_left",
+      "title": "图  例"
+    },
+    "scale_bar": {
+      "enabled": true
+    }
+  }
+}

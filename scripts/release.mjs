@@ -1,0 +1,22 @@
+import { spawnSync } from 'node:child_process';
+import { resolve, join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { mkdirSync, cpSync, existsSync, writeFileSync } from 'node:fs';
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const archive = spawnSync(process.execPath, [join(root,'scripts/archive-resources.mjs')], {stdio:'inherit',windowsHide:true});
+if (archive.status !== 0) throw new Error('完整资源归档失败');
+const output = resolve(root, '..', 'dsh-release');
+mkdirSync(output, { recursive: true });
+const staging = join(output, 'dsh');
+if (existsSync(staging)) throw new Error('dsh-release/dsh 已存在，请移走旧发布目录后重试，以免混入旧文件。');
+cpSync(root, staging, { recursive: true, filter: path => {
+  const relative = path.slice(root.length).replaceAll('\\', '/');
+  return !/^\/(node_modules|\.runtime|\.dsh|02_WorkSpace)(\/|$)/.test(relative);
+} });
+writeFileSync(join(output, '分发说明.txt'), '将 dsh 文件夹整体发给接收方；解压后进入 dsh 并按 README.md 安装。包内保留源插件凭据，适用于授权私下分发；公开前请替换 config/mcp.json 和 resources/plugin/.claude-plugin/plugin.json 中的凭据，并重建完整性清单。\n');
+const zip = join(output, 'linktool-dsh-3.0.0.zip');
+const python = 'import os,sys,zipfile\nroot,out=sys.argv[1:]\nwith zipfile.ZipFile(out,"w",zipfile.ZIP_DEFLATED,compresslevel=6) as z:\n for base,dirs,files in os.walk(root):\n  for name in files:\n   path=os.path.join(base,name);z.write(path,os.path.relpath(path,os.path.dirname(root)))';
+const result = spawnSync('python', ['-c',python,staging,zip], {stdio:'inherit',windowsHide:true});
+if (result.error) throw result.error;
+if (result.status !== 0) process.exitCode = result.status ?? 1;
+console.log('发布目录：' + output);

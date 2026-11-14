@@ -1,0 +1,12 @@
+import { spawnSync } from 'node:child_process';
+import { dirname, resolve, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { existsSync, mkdirSync } from 'node:fs';
+const root = resolve(process.argv[2] ?? resolve(dirname(fileURLToPath(import.meta.url)), '..'));
+const archive = join(root, 'resources-full.tar.gz');
+if (!existsSync(archive)) throw new Error('缺少 resources-full.tar.gz，请使用完整发布包');
+mkdirSync(join(root,'resources'),{recursive:true});
+const result = spawnSync('tar', ['-xzf', archive, '-C', join(root,'resources')], {stdio:'inherit',windowsHide:true});
+if(result.error) throw result.error;
+if(result.status !== 0) throw new Error('完整资源恢复失败');
+console.log('完整源资源已恢复；运行时使用重建的 Python 环境，不使用源机器 .venv。');

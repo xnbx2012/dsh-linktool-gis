@@ -1,0 +1,13 @@
+[project]
+  name = "geovisual"
+  version = "3.0.0"
+  description = "GIS数据可视化智能体，支持地理数据可视化和地图制图"
+  requires-python = ">=3.12"
+  dependencies = [
+      "fastapi>=0.115.0",
+      "uvicorn[standard]>=0.30.0",
+      "pydantic>=2.0.0",
+      "websockets>=14.0",
+      "requests>=2.31.0",
+      "python-dotenv>=1.0.0",
+  ]

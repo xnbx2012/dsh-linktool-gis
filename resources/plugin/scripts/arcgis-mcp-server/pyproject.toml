@@ -1,0 +1,12 @@
+[project]
+name = "arcgis-mcp-server"
+version = "0.1.0"
+description = "ArcGIS MCP Server - GIS tools via ArcPy through FastMCP"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp[cli]>=1.26.0",
+]
+
+[project.optional-dependencies]
+windows = ["pywin32>=306"]

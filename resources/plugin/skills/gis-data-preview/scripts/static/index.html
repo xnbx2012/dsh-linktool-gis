@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LinkTool GIS Visualizer</title>
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Project styles -->
+    <link rel="stylesheet" href="/static/css/layout.css" />
+    <link rel="stylesheet" href="/static/css/components.css" />
+</head>
+<body>
+    <!-- ============ TOP BAR ============ -->
+    <header id="topbar">
+        <span class="topbar-title">LinkTool GIS Visualizer</span>
+        <span id="coord-display" class="topbar-coord">经度: --  纬度: --</span>
+        <span id="ws-status" class="topbar-status" title="WebSocket 连接状态">
+            <span class="status-dot disconnected"></span>未连接
+        </span>
+    </header>
+
+    <!-- ============ MAIN AREA ============ -->
+    <div id="main-container">
+        <!-- LEFT SIDEBAR -->
+        <aside id="sidebar">
+            <!-- Layer Manager -->
+            <div id="layer-panel" class="panel">
+                <div class="panel-header">
+                    <span class="panel-icon">&#9776;</span>
+                    <span class="panel-title">图层管理</span>
+                    <button id="toggle-sidebar-btn" class="panel-collapse" title="折叠侧边栏">&#9650;</button>
+                </div>
+                <div class="panel-body">
+                    <!-- Base map switcher -->
+                    <div class="basemap-switch">
+                        <button class="basemap-btn active" data-basemap="vec">矢量底图</button>
+                        <button class="basemap-btn" data-basemap="img">卫星影像</button>
+                    </div>
+                    <!-- Dynamic layer list -->
+                    <div id="layer-list" class="layer-list"></div>
+                    <p id="layer-empty-hint" class="hint-text">暂无图层，等待数据推送...</p>
+                </div>
+            </div>
+
+            <!-- Horizontal resize handle: between layer-panel and log-panel -->
+            <div class="resize-handle-h" id="resize-log"></div>
+
+            <!-- Operation Log -->
+            <div id="log-panel" class="panel log-panel">
+                <div class="panel-header">
+                    <span class="panel-icon">&#9654;</span>
+                    <span class="panel-title">操作日志</span>
+                    <button id="clear-log-btn" class="panel-action-btn" title="清空日志">清空</button>
+                </div>
+                <div class="panel-body">
+                    <div id="log-content" class="log-content"></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Vertical resize handle: between sidebar and map -->
+        <div class="resize-handle-v" id="resize-sidebar"></div>
+
+        <!-- SIDEBAR COLLAPSE TOGGLE (shown when sidebar is collapsed) -->
+        <button id="sidebar-expand-btn" class="sidebar-expand-btn hidden" title="展开侧边栏">&#9664;</button>
+
+        <!-- MAP VIEW -->
+        <div id="map-container">
+            <div id="map"></div>
+
+            <!-- BOTTOM DRAWER: Attribute Table -->
+            <div id="attr-drawer" class="attr-drawer collapsed">
+                <!-- Resize handle: between map and drawer -->
+                <div class="resize-handle-drawer" id="resize-drawer"></div>
+                <div class="drawer-header" id="drawer-toggle">
+                    <span>属性表</span>
+                    <span class="drawer-arrow">&#9660;</span>
+                </div>
+                <!-- Tab bar -->
+                <div class="attr-tabs" id="attr-tabs"></div>
+                <!-- Tab content -->
+                <div class="drawer-body" id="drawer-body">
+                    <div id="attr-tab-panels"></div>
+                    <p id="attr-empty" class="hint-text">点击图层名称查看全部属性</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project scripts -->
+    <script src="/static/js/map_core.js"></script>
+    <script src="/static/js/ui_controller.js"></script>
+    <script src="/static/js/websocket.js"></script>
+</body>
+</html>

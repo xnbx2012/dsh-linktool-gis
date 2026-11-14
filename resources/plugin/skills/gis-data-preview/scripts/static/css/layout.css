@@ -1,0 +1,456 @@
+/* ===== Reset & Base ===== */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-size: 13px;
+    color: #333;
+    background: #f5f5f5;
+}
+
+/* ===== Top Bar ===== */
+#topbar {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 12px;
+    background: #fff;
+    border-bottom: 1px solid #d0d0d0;
+    user-select: none;
+    z-index: 1000;
+}
+
+.topbar-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1565c0;
+    letter-spacing: 0.5px;
+}
+
+.topbar-coord {
+    margin-left: auto;
+    margin-right: 16px;
+    font-size: 12px;
+    color: #666;
+    font-family: "Consolas", "Courier New", monospace;
+}
+
+.topbar-status {
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.status-dot.connected    { background: #4caf50; }
+.status-dot.disconnected { background: #f44336; }
+.status-dot.connecting   { background: #ff9800; }
+
+/* ===== Main Container ===== */
+#main-container {
+    display: flex;
+    height: calc(100vh - 36px);
+    position: relative;
+}
+
+/* ===== Sidebar ===== */
+#sidebar {
+    width: 280px;
+    min-width: 180px;
+    max-width: 500px;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-right: 1px solid #d0d0d0;
+    overflow: hidden;
+    z-index: 500;
+    position: relative;
+    flex-shrink: 0;
+}
+
+#sidebar.collapsed {
+    width: 0;
+    min-width: 0;
+    max-width: 0;
+    border-right: none;
+    overflow: hidden;
+}
+
+/* Sidebar expand button (visible when collapsed) */
+.sidebar-expand-btn {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 56px;
+    background: #fff;
+    border: 1px solid #d0d0d0;
+    border-left: none;
+    border-radius: 0 4px 4px 0;
+    color: #888;
+    cursor: pointer;
+    font-size: 12px;
+    z-index: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+
+.sidebar-expand-btn:hover {
+    background: #e8e8e8;
+    color: #333;
+}
+
+.sidebar-expand-btn.hidden {
+    display: none;
+}
+
+/* ===== Panel (shared) ===== */
+.panel {
+    display: flex;
+    flex-direction: column;
+}
+
+#layer-panel {
+    flex: 1;
+    min-height: 100px;
+    overflow: hidden;
+}
+
+.log-panel {
+    height: 180px;
+    min-height: 80px;
+    border-top: 1px solid #d0d0d0;
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    background: #fafafa;
+    border-bottom: 1px solid #e0e0e0;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.panel-icon {
+    font-size: 11px;
+    margin-right: 6px;
+    color: #999;
+}
+
+.panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #444;
+    flex: 1;
+}
+
+.panel-collapse {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.panel-collapse:hover {
+    background: #e8e8e8;
+    color: #333;
+}
+
+.panel-action-btn {
+    background: none;
+    border: 1px solid #ccc;
+    color: #666;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 3px;
+}
+
+.panel-action-btn:hover {
+    background: #e8e8e8;
+    color: #333;
+    border-color: #aaa;
+}
+
+.panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+}
+
+/* ===== Resize Handles ===== */
+
+/* Vertical handle: between sidebar and map */
+.resize-handle-v {
+    width: 5px;
+    cursor: col-resize;
+    background: transparent;
+    position: relative;
+    flex-shrink: 0;
+    z-index: 510;
+    transition: background 0.15s;
+}
+
+.resize-handle-v:hover,
+.resize-handle-v.active {
+    background: #1976d2;
+}
+
+.resize-handle-v::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 3px;
+    height: 24px;
+    border-radius: 2px;
+    background: #bbb;
+}
+
+.resize-handle-v:hover::after,
+.resize-handle-v.active::after {
+    background: #fff;
+}
+
+/* Horizontal handle: between log-panel and layer-panel inside sidebar */
+.resize-handle-h {
+    height: 5px;
+    cursor: row-resize;
+    background: transparent;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+
+.resize-handle-h:hover,
+.resize-handle-h.active {
+    background: #1976d2;
+}
+
+.resize-handle-h::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 24px;
+    height: 3px;
+    border-radius: 2px;
+    background: #bbb;
+}
+
+.resize-handle-h:hover::after,
+.resize-handle-h.active::after {
+    background: #fff;
+}
+
+.resize-handle-h {
+    position: relative;
+}
+
+/* Horizontal handle: between map and attribute drawer */
+.resize-handle-drawer {
+    height: 5px;
+    cursor: row-resize;
+    background: transparent;
+    flex-shrink: 0;
+    z-index: 410;
+    transition: background 0.15s;
+    position: relative;
+}
+
+.resize-handle-drawer:hover,
+.resize-handle-drawer.active {
+    background: #1976d2;
+}
+
+.resize-handle-drawer::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 24px;
+    height: 3px;
+    border-radius: 2px;
+    background: #bbb;
+}
+
+.resize-handle-drawer:hover::after,
+.resize-handle-drawer.active::after {
+    background: #fff;
+}
+
+/* ===== Map Container ===== */
+#map-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    min-width: 200px;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+}
+
+/* ===== Attribute Table Drawer ===== */
+.attr-drawer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border-top: 1px solid #d0d0d0;
+    z-index: 400;
+    height: 40vh;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+}
+
+.attr-drawer.collapsed .drawer-body {
+    display: none;
+}
+
+.attr-drawer.collapsed {
+    display: none;
+}
+
+.drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: #fafafa;
+    border-bottom: 1px solid #e0e0e0;
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #444;
+}
+
+.drawer-arrow {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+.attr-drawer.collapsed .drawer-arrow {
+    transform: rotate(180deg);
+}
+
+.drawer-body {
+    overflow: auto;
+    flex: 1;
+    padding: 6px;
+}
+
+/* ===== Attribute Table ===== */
+.attr-table,
+#attr-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.attr-table thead th,
+#attr-table thead th {
+    position: sticky;
+    top: 0;
+    background: #f0f0f0;
+    color: #333;
+    padding: 4px 8px;
+    text-align: left;
+    border-bottom: 1px solid #d0d0d0;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.attr-table tbody td,
+#attr-table tbody td {
+    padding: 3px 8px;
+    border-bottom: 1px solid #e8e8e8;
+    color: #555;
+    white-space: nowrap;
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.attr-table tbody tr:hover,
+#attr-table tbody tr:hover {
+    background: #e8f0fe;
+}
+
+.attr-table tbody tr.attr-row-highlight,
+#attr-table tbody tr.attr-row-highlight {
+    background: #bbdefb !important;
+    outline: 2px solid #1565c0;
+    outline-offset: -2px;
+}
+
+/* ===== Hint text ===== */
+.hint-text {
+    padding: 12px;
+    color: #aaa;
+    font-size: 12px;
+    text-align: center;
+    font-style: italic;
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f5f5f5;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c0c0c0;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a0a0a0;
+}
+
+/* ===== Global no-select during resize ===== */
+body.resizing {
+    cursor: col-resize;
+    user-select: none;
+}
+
+body.resizing-row {
+    cursor: row-resize;
+    user-select: none;
+}
+
+body.resizing * {
+    cursor: inherit !important;
+}

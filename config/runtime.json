@@ -1,0 +1,48 @@
+{
+  "hooksEnabled": true,
+  "mcpEnabled": true,
+  "enabledServers": [
+    "amap-maps",
+    "arcgis-mcp-server",
+    "bing-search",
+    "color-style",
+    "knowledge-db",
+    "memory-server",
+    "pdf-reader-mcp",
+    "MiniMax"
+  ],
+  "modelAliases": {
+    "haiku": {
+      "mode": "inherit"
+    },
+    "sonnet": {
+      "mode": "inherit"
+    },
+    "opus": {
+      "mode": "inherit"
+    }
+  },
+  "serverAliases": {
+    "pdf-read-mcp": "pdf-reader-mcp"
+  },
+  "toolAliases": {
+    "Wrtie": "Write",
+    "Web_Search": "WebSearch"
+  },
+  "maxAgentDepth": 16,
+  "hookTimeoutMs": 600000,
+  "agentSkillRules": {
+    "gis-data-preview": [
+      "gis-data-visualisation"
+    ],
+    "map-image-generate": [
+      "gis-data-visualisation"
+    ],
+    "officecli-docx": [
+      "report"
+    ],
+    "officecli-xlsx": [
+      "report"
+    ]
+  }
+}

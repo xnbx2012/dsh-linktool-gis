@@ -1,0 +1,70 @@
+{
+  "protected_dirs": [
+    {
+      "path": "${CLAUDE_CONFIG_DIR}",
+      "access": "none",
+      "recursive": true,
+      "description": "Claude配置文件目录，完全禁止访问"
+    },
+    {
+      "path": "${USER_HOME}/.claude",
+      "access": "none",
+      "recursive": true,
+      "description": "Claude用户配置目录，完全禁止访问"
+    },
+    {
+      "path": "C:/Windows",
+      "access": "none",
+      "recursive": true,
+      "description": "Windows系统目录，完全禁止访问"
+    },
+    {
+      "path": "C:/Program Files",
+      "access": "none",
+      "recursive": true,
+      "description": "Windows程序目录，完全禁止访问"
+    },
+    {
+      "path": "C:/ProgramData",
+      "access": "none",
+      "recursive": true,
+      "description": "Windows程序数据目录，完全禁止访问"
+    },
+    {
+      "path": "/etc",
+      "access": "none",
+      "recursive": true,
+      "description": "Linux系统配置目录，完全禁止访问"
+    },
+    {
+      "path": "/usr",
+      "access": "none",
+      "recursive": true,
+      "description": "Linux用户程序目录，完全禁止访问"
+    },
+    {
+      "path": "/bin",
+      "access": "none",
+      "recursive": true,
+      "description": "Linux二进制目录，完全禁止访问"
+    },
+    {
+      "path": "/sbin",
+      "access": "none",
+      "recursive": true,
+      "description": "Linux系统二进制目录，完全禁止访问"
+    },
+    {
+      "path": "/System",
+      "access": "none",
+      "recursive": true,
+      "description": "macOS系统目录，完全禁止访问"
+    },
+    {
+      "path": "${TEMP}",
+      "access": "read",
+      "recursive": true,
+      "description": "临时目录，仅允许读取，禁止写入"
+    }
+  ]
+}

@@ -1,0 +1,789 @@
+{
+  "name": "linktool-plugin",
+  "version": "3.0.0",
+  "agents": [
+    {
+      "path": "agents/data-retrieval.md",
+      "metadata": {
+        "name": "data-retrieval",
+        "description": "快速数据摸底专家。在任务分流前执行，快速确认数据可用性和基本结构，输出轻量数据速览卡片供分流决策。",
+        "model": "sonnet",
+        "color": "green",
+        "tools": "Glob, Grep, Read, Wrtie, Edit, Update, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents, mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties",
+        "mcpServers": [
+          "arcgis-mcp-server"
+        ],
+        "skills": [
+          "data-retrieval"
+        ],
+        "maxTurns": 8
+      },
+      "bodySha256": "fa3937fe99887eba6fb3f95bf915dc4b8e4ee130279c7330e341ea4565cedb7b",
+      "fileSha256": "2ecb418fb7b7c3aa0d389da3025344c7c3e01d6f1cd2b50c5c0510f1d3a5c3c3",
+      "name": "data-retrieval",
+      "tools": [
+        "Glob",
+        "Grep",
+        "Read",
+        "Wrtie",
+        "Edit",
+        "Update",
+        "Skill",
+        "TaskCreate",
+        "TaskGet",
+        "TaskUpdate",
+        "TaskList",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties"
+      ],
+      "disallowedTools": [],
+      "skills": [
+        "data-retrieval"
+      ],
+      "mcpServers": [
+        "arcgis-mcp-server"
+      ]
+    },
+    {
+      "path": "agents/gis-data-visualisation.md",
+      "metadata": {
+        "name": "gis-data-visualisation",
+        "description": "GIS 地图制图智能体。根据用户需求、数据主题、地理数据类型、属性字段、配色规范和制图规范，生成地图图件；制图前必须分析数据属性和字段特征，制图后必须调用 VLM MCP 工具检查图件质量。",
+        "capabilities": [
+          "地图制图：根据用户需求、数据主题、数据类型、属性字段、配色规范和制图规范，调用 '/map-image-generate' 技能生成地图图件",
+          "数据制图分析：调用 arcgis-mcp-server ，检查数据属性、坐标系、几何类型、字段结构和属性表，判断适合的制图字段、符号系统和分类方法",
+          "配色设计：根据数据主题、字段名、属性表数据特征以及用户提供的色带参考，选择合适的配色方案",
+          "图件质检：调用 VLM MCP 工具对输出图件进行视觉检查，检查制图要素是否齐全、布局是否合理、主体是否居中、图例与标注是否清晰、配色是否符合主题、图件是否美观"
+        ],
+        "tools": "Read, Write, Edit, Update, Bash, Skill, mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents, mcp__plugin_linktool-plugin_arcgis-mcp-server__query_feature_attributes, mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties, mcp__plugin_linktool-plugin_arcgis-mcp-server__execute_gis_tool, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch, Agent, WebFetch, Web_Search, mcp__MiniMax__understand_image",
+        "mcpServers": [
+          "arcgis-mcp-server",
+          "MiniMax",
+          "color-style"
+        ]
+      },
+      "bodySha256": "a027da1504a180ebb1122c04598c716d874be7b0ddd5c5f3fe6e96c558e82d3b",
+      "fileSha256": "754bdfc95da60db7422b579f7c3f7133d13d2107bde801b3bad850b358c6e318",
+      "name": "gis-data-visualisation",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Update",
+        "Bash",
+        "Skill",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__query_feature_attributes",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__execute_gis_tool",
+        "TaskCreate",
+        "TaskGet",
+        "TaskUpdate",
+        "TaskList",
+        "ToolSearch",
+        "Agent",
+        "WebFetch",
+        "Web_Search",
+        "mcp__MiniMax__understand_image"
+      ],
+      "disallowedTools": [],
+      "skills": [],
+      "mcpServers": [
+        "arcgis-mcp-server",
+        "MiniMax",
+        "color-style"
+      ]
+    },
+    {
+      "path": "agents/gis-tool.md",
+      "metadata": {
+        "name": "gis-tool",
+        "description": "在以下场景使用：1）单步或小型 GIS 空间分析（缓冲区、裁剪、叠加、相交、合并、融合等）2）自然语言转 ArcGIS MCP 工具调用 3）执行前需补齐参数 4）执行后需核验结果 5）失败需诊断重试",
+        "model": "sonnet",
+        "color": "blue",
+        "tools": "Glob, Grep, Read, Write, Edit, WebFetch, WebSearch, Bash, mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents, mcp__plugin_linktool-plugin_arcgis-mcp-server__query_feature_attributes, mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties, mcp__plugin_linktool-plugin_color-style__create_map, mcp__plugin_linktool-plugin_memory-server__write_tool_error_memory, mcp__plugin_linktool-plugin_memory-server__read_tool_error_memory, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch, Agent, mcp__plugin_linktool-plugin_arcgis-mcp-server__execute_gis_tool",
+        "mcpServers": [
+          "arcgis-mcp-server",
+          "color-style",
+          "memory-server"
+        ],
+        "maxTurns": 20,
+        "skills": [
+          "param-confirm",
+          "tool-execute",
+          "tool-retry",
+          "result-confirm",
+          "visual-check"
+        ]
+      },
+      "bodySha256": "0e442984b8af974c9b6bf3656e20304a423c4e0aadb9a7089a28d1eef3db0eb2",
+      "fileSha256": "1228ecac8b1c818d7b1d3aed3ac42732627ee7c6b503705bea0841b107407bdb",
+      "name": "gis-tool",
+      "tools": [
+        "Glob",
+        "Grep",
+        "Read",
+        "Write",
+        "Edit",
+        "WebFetch",
+        "WebSearch",
+        "Bash",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__query_feature_attributes",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties",
+        "mcp__plugin_linktool-plugin_color-style__create_map",
+        "mcp__plugin_linktool-plugin_memory-server__write_tool_error_memory",
+        "mcp__plugin_linktool-plugin_memory-server__read_tool_error_memory",
+        "Skill",
+        "TaskCreate",
+        "TaskGet",
+        "TaskUpdate",
+        "TaskList",
+        "ToolSearch",
+        "Agent",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__execute_gis_tool"
+      ],
+      "disallowedTools": [],
+      "skills": [
+        "param-confirm",
+        "tool-execute",
+        "tool-retry",
+        "result-confirm",
+        "visual-check"
+      ],
+      "mcpServers": [
+        "arcgis-mcp-server",
+        "color-style",
+        "memory-server"
+      ]
+    },
+    {
+      "path": "agents/question-classify.md",
+      "metadata": {
+        "name": "question-classify",
+        "description": "地理信息问题分类入口。当用户提出 GIS 相关需求时，先调用 @data-retrieval 完成数据摸底，再基于数据画像报告进行问题类型判断，决定后续处理路径。",
+        "model": "haiku",
+        "color": "purple",
+        "tools": "Glob, Grep, Read, Bash, ListMcpResourcesTool, ReadMcpResourceTool, mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents, mcp__plugin_linktool-plugin_arcgis-mcp-server__query_feature_attributes, mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties, mcp__plugin_linktool-plugin_arcgis-mcp-server__get_arcpy_info, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList",
+        "mcpServers": [
+          "arcgis-mcp-server",
+          "knowledge-db"
+        ],
+        "skills": [
+          "question-classify"
+        ]
+      },
+      "bodySha256": "a6cbc0c61a9903fa2c7892070b68356e30a7f44ff8f12d6407df8cad8b2943c6",
+      "fileSha256": "2673e44ac9ac68fd86ddcdbce231b5ae4d86e0759d38bd8157229a73969b5790",
+      "name": "question-classify",
+      "tools": [
+        "Glob",
+        "Grep",
+        "Read",
+        "Bash",
+        "ListMcpResourcesTool",
+        "ReadMcpResourceTool",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__query_feature_attributes",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__get_arcpy_info",
+        "Skill",
+        "TaskCreate",
+        "TaskGet",
+        "TaskUpdate",
+        "TaskList"
+      ],
+      "disallowedTools": [],
+      "skills": [
+        "question-classify"
+      ],
+      "mcpServers": [
+        "arcgis-mcp-server",
+        "knowledge-db"
+      ]
+    },
+    {
+      "path": "agents/report.md",
+      "metadata": {
+        "name": "report",
+        "color": "pink",
+        "description": "Generates GIS reports after analysis is complete. Routes to tool-report for process reports, conclusion-report for analytical/evaluation reports, and officecli for DOCX/XLSX generation or validation.",
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash",
+          "Skill",
+          "Update",
+          "mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents",
+          "mcp__plugin_linktool-plugin_arcgis-mcp-server__query_feature_attributes",
+          "mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties"
+        ],
+        "disallowedTools": "Agent",
+        "model": "sonnet",
+        "mcpServers": [
+          "arcgis-mcp-server",
+          "pdf-read-mcp",
+          "bing-search",
+          "knowledge-db"
+        ],
+        "permissionMode": "acceptEdits",
+        "memory": "project",
+        "maxTurns": 50,
+        "skills": [
+          "tool-report",
+          "conclusion-report",
+          "officecli"
+        ]
+      },
+      "bodySha256": "536030b7e6bea064c7eef1439f1ddf5f9e4cf2ca6d43e93420a9a90bf6b9498c",
+      "fileSha256": "80084bec9c5a31b2725df474f0cc901f0bab42ec17fb9690249c5d914260760a",
+      "name": "report",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Grep",
+        "Glob",
+        "Bash",
+        "Skill",
+        "Update",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__query_feature_attributes",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties"
+      ],
+      "disallowedTools": [
+        "Agent"
+      ],
+      "skills": [
+        "tool-report",
+        "conclusion-report",
+        "officecli"
+      ],
+      "mcpServers": [
+        "arcgis-mcp-server",
+        "pdf-read-mcp",
+        "bing-search",
+        "knowledge-db"
+      ]
+    },
+    {
+      "path": "agents/task-plan.md",
+      "metadata": {
+        "name": "task-plan",
+        "description": "GIS需求 → 可执行Workflow。选址分析/适宜性评价/耕地质量评价等复杂空间分析任务调用。",
+        "model": "opus",
+        "color": "orange",
+        "permissionMode": "plan",
+        "maxTurns": 30,
+        "skills": "gis-task-plan, data-doubt-check, task-data-manage, workflow-dsl",
+        "tools": "Glob, Grep, Read, WebFetch, WebSearch, Bash, ListMcpResourcesTool, ReadMcpResourceTool, mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents, mcp__plugin_linktool-plugin_arcgis-mcp-server__query_feature_attributes, mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties, mcp__knowledge-db__search_knowledge, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, TaskStop, ToolSearch, Workflow, Write, Edit"
+      },
+      "bodySha256": "a113c5510f545db702c05db1f7d5e8649bf057aa5035aa18c30a50c4fb511d15",
+      "fileSha256": "a7c4b12f41c52faa9ba2a0c2d191f97052d1c2f32a8d445ab5fffff890779e9c",
+      "name": "task-plan",
+      "tools": [
+        "Glob",
+        "Grep",
+        "Read",
+        "WebFetch",
+        "WebSearch",
+        "Bash",
+        "ListMcpResourcesTool",
+        "ReadMcpResourceTool",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__query_feature_attributes",
+        "mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties",
+        "mcp__knowledge-db__search_knowledge",
+        "Skill",
+        "TaskCreate",
+        "TaskGet",
+        "TaskUpdate",
+        "TaskList",
+        "TaskStop",
+        "ToolSearch",
+        "Workflow",
+        "Write",
+        "Edit"
+      ],
+      "disallowedTools": [],
+      "skills": [
+        "gis-task-plan",
+        "data-doubt-check",
+        "task-data-manage",
+        "workflow-dsl"
+      ],
+      "mcpServers": []
+    }
+  ],
+  "skills": [
+    {
+      "path": "skills/conclusion-report/SKILL.md",
+      "metadata": {
+        "name": "conclusion-report",
+        "description": "Generates analytical, evaluation, and conclusion reports from verified GIS results and statistics.",
+        "agent": "report"
+      },
+      "bodySha256": "67b3e2ceb52b6d6c83b8797b59932fab75f75fa6247b8627f02ad6dc8f6f37fa",
+      "fileSha256": "e399c6c17ad51cfe4e62aaa2ab007d4f1af047d98d59971ac67c6bb44b5cbf43",
+      "name": "conclusion-report",
+      "agent": "report",
+      "context": "inline",
+      "allowedTools": [],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/data-analyzer/SKILL.md",
+      "metadata": {
+        "name": "data-analyzer",
+        "description": "数据分析核心，输出统计数据、文字分析结论和数据洞察。纯 Python 内置库，无需依赖。"
+      },
+      "bodySha256": "ad3f64c1b98a8d2b1ddcd44b715d56d6e7cee12386513012ce2a6504ad5c1735",
+      "fileSha256": "60dc4289046ad0beee8602d9722559c1be5cbf8a56cb55b290519edd7a59a3c7",
+      "name": "data-analyzer",
+      "agent": null,
+      "context": "inline",
+      "allowedTools": [],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/data-doubt-check/SKILL.md",
+      "metadata": {
+        "name": "data-doubt-check",
+        "description": "可疑数据判定规则。当数据名称无法确定数据内容时，定义属性表进一步检查规则。仅限 @task-plan Agent 使用。",
+        "agent": "task-plan",
+        "context": "fork"
+      },
+      "bodySha256": "cf70c6a66b283672ac8061dd93c4adc5a6e3aef0529750755a5488b0a04a3ae9",
+      "fileSha256": "65dd8faf435bd25b6f5f5251dcc56bb43be8c8258f3176f24a5011ace53adf20",
+      "name": "data-doubt-check",
+      "agent": "task-plan",
+      "context": "fork",
+      "allowedTools": [],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/data-retrieval/SKILL.md",
+      "metadata": {
+        "name": "data-retrieval",
+        "description": "快速数据摸底。从用户需求中提取数据实体，调用MCP工具获取关键元数据（数据是否存在、几何类型、字段列表、要素数量），输出轻量数据速览卡片，供任务分流Agent判断任务复杂度。仅 @data-retrieval Agent 可调用。",
+        "agent": "data-retrieval",
+        "context": "fork"
+      },
+      "bodySha256": "7fc84b36213e44c1446f35c7bab6d32a63af64f9413af52c5c1ff14be859d3a5",
+      "fileSha256": "c40101712e7110aabe084172c4f16c54cad3d65be5ce088ed2233f9df1898e70",
+      "name": "data-retrieval",
+      "agent": "data-retrieval",
+      "context": "fork",
+      "allowedTools": [],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/gis-data-preview/SKILL.md",
+      "metadata": {
+        "name": "gis-data-preview",
+        "description": "将 .shp / .gdb / .GeoJson 数据推送到网页实现数据实时预览，支持点/线/面图层的简单渲染、唯一值渲染和分级渲染。仅限`gis-data-visualisation`智能体调用。"
+      },
+      "bodySha256": "93d135c37e3643dc190bb97382b6811bf994c27ae39d4fb5beed4746dae8b89a",
+      "fileSha256": "9dfc11c225551ca2778e3b245f00909389a1e064984611fbff99b77e5e8163fe",
+      "name": "gis-data-preview",
+      "agent": null,
+      "context": "inline",
+      "allowedTools": [],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/gis-task-plan/SKILL.md",
+      "metadata": {
+        "name": "gis-task-plan",
+        "description": "GIS任务规划全流程：数据探索→需求解读→任务分解→计划审批→执行→验收。仅限 @task-plan Agent 调用。",
+        "context": "fork",
+        "agent": "task-plan",
+        "argument-hint": "[用户原始需求文本]"
+      },
+      "bodySha256": "d8e468ec77028d9f0459408a3ecbd239918987440ec955e24d3558bbd70d86aa",
+      "fileSha256": "69b53e925ca9ff26359c545c67ed7810b0ffa9b16c3746e132cc69e4e58b78ab",
+      "name": "gis-task-plan",
+      "agent": "task-plan",
+      "context": "fork",
+      "allowedTools": [],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/map-beautify-skills/beautify-routing/SKILL.md",
+      "metadata": {
+        "name": "beautify-routing",
+        "description": "当用户请求美化粗糙地图图片时使用。读取用户提示词与底图，按 skills 知识库分类规则与美化原则拼装中文 prompt，调 beautify_image MCP 工具完成图生图美化。",
+        "allowed-tools": "image-beautify, Read",
+        "agent": "gis-data-visualisation"
+      },
+      "bodySha256": "a17ccb9e03bcc3fda11f238a1004cff6f632428b4db61e5ba1a1d4b4e54206d5",
+      "fileSha256": "cd6a73fb7b8f12cbe05744f17fc64f83c03fc67507dda0e681ea3932cd2cb961",
+      "name": "beautify-routing",
+      "agent": "gis-data-visualisation",
+      "context": "inline",
+      "allowedTools": [
+        "image-beautify",
+        "Read"
+      ],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/map-image-generate/SKILL.md",
+      "metadata": {
+        "name": "map-image-generate",
+        "description": "使用color-style-mcp根据指定数据生成地图图片的完整指导，生成地图图片时必须用此Skill。",
+        "allowed-tools": "mcp__plugin_linktool-plugin_color-style__create_map, mcp__MiniMax__understand_image, mcp__arcgis-mcp-server__list_gdb_contents, mcp__arcgis-mcp-server__query_feature_attributes, mcp__arcgis-mcp-server__get_data_properties"
+      },
+      "bodySha256": "5cd4828f4dbf7768458225f237a3837a0254c249446f197ed5767c679cb256b5",
+      "fileSha256": "2b8b94caa1acb0d69cfad79a395c651dc0e3d4624190cb191a7977848d0c1d52",
+      "name": "map-image-generate",
+      "agent": null,
+      "context": "inline",
+      "allowedTools": [
+        "mcp__plugin_linktool-plugin_color-style__create_map",
+        "mcp__MiniMax__understand_image",
+        "mcp__arcgis-mcp-server__list_gdb_contents",
+        "mcp__arcgis-mcp-server__query_feature_attributes",
+        "mcp__arcgis-mcp-server__get_data_properties"
+      ],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/officecli/SKILL.md",
+      "metadata": {
+        "name": "officecli",
+        "description": "Creates, inspects, validates, and edits Office files using the bundled officecli CLI.",
+        "agent": "report",
+        "allowed_tools": [
+          "officecli"
+        ]
+      },
+      "bodySha256": "b0adc7bbcda276dd06c62f5cf6acaeab6e6146ab5079f3aababce24ce38b8ea2",
+      "fileSha256": "42b51f85bd219cba7cbdc6ea9bb69e31733b27395ec47a05696c02ce61618c15",
+      "name": "officecli",
+      "agent": "report",
+      "context": "inline",
+      "allowedTools": [
+        "officecli"
+      ],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/officecli/skills/officecli-docx/SKILL.md",
+      "metadata": {
+        "name": "officecli-docx",
+        "description": "Use this skill any time a .docx file is involved -- as input, output, or both. This includes: creating Word documents, reports, letters, memos, or proposals; reading, parsing, or extracting text from any .docx file; editing, modifying, or updating existing documents; working with templates, tracked changes, comments, headers/footers, or tables of contents. Trigger whenever the user mentions 'Word doc', 'document', 'report', 'letter', 'memo', or references a .docx filename."
+      },
+      "bodySha256": "a9cef5e9f4e155d3922417ead4f910006a5c312e17e56888c26259e65e26f265",
+      "fileSha256": "09bb0131342a4ca8846c3fe284b9a988020c431721f38dda77ab428b48779895",
+      "name": "officecli-docx",
+      "agent": null,
+      "context": "inline",
+      "allowedTools": [],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/officecli/skills/officecli-xlsx/SKILL.md",
+      "metadata": {
+        "name": "officecli-xlsx",
+        "description": "Use this skill any time a .xlsx file is involved -- as input, output, or both. This includes: creating spreadsheets, financial models, dashboards, or trackers; reading, parsing, or extracting data from any .xlsx file; editing, modifying, or updating existing workbooks; working with formulas, charts, pivot tables, or templates; importing CSV/TSV data into Excel format. Trigger whenever the user mentions 'spreadsheet', 'workbook', 'Excel', 'financial model', 'tracker', 'dashboard', or references a .xlsx/.csv filename."
+      },
+      "bodySha256": "9d4fe50dd3660c39a4d44ffdc310bf27780cfdb6cc6f78dee349cb349e46dabc",
+      "fileSha256": "e39081ae481c6aade1d3f82c64e290a8f4d460badc40c9c8e37b3b0739119252",
+      "name": "officecli-xlsx",
+      "agent": null,
+      "context": "inline",
+      "allowedTools": [],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/param-confirm/SKILL.md",
+      "metadata": {
+        "name": "param-confirm",
+        "description": "当用户要执行 ArcGIS 工具但关键业务参数缺失或有歧义时，查文档补参。仅限 gis-tool Agent 使用。",
+        "argument-hint": "工具名称及已知参数",
+        "allowed-tools": "bing-search, WebFetch",
+        "agent": "gis-tool",
+        "context": "fork"
+      },
+      "bodySha256": "751ee47038e1d5b4a0079e5f5f72437ab49264ee1d8fb507c4f9f8d86fdec25c",
+      "fileSha256": "acdaa478863b414b8545444e533bc20c98061d1658e6f57e949a588ac9efed7b",
+      "name": "param-confirm",
+      "agent": "gis-tool",
+      "context": "fork",
+      "allowedTools": [
+        "bing-search",
+        "WebFetch"
+      ],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/question-classify/SKILL.md",
+      "metadata": {
+        "name": "question-classify",
+        "description": "问题分类技能。基于 @data-retrieval 生成的数据画像报告，对用户需求进行复杂性评估，分为决策支持类、简单分析类、简单查询类三类，并路由到对应处理流程。仅限 @question-classify Agent 使用。",
+        "agent": "question-classify",
+        "context": "fork"
+      },
+      "bodySha256": "3df3426c5237084fc4070573ddf8f58c1e4636e49298df7e32ce4533e41a0c0a",
+      "fileSha256": "c7800510f2fec8662cd5fd72a30eb6c5624c93c788699051cdccc8469a0ce3a0",
+      "name": "question-classify",
+      "agent": "question-classify",
+      "context": "fork",
+      "allowedTools": [],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/report-generate/SKILL.md",
+      "metadata": {
+        "name": "report-generate",
+        "description": "根据用户提供的GIS数据生成符合国家规范的报告文档（docx格式）。支持耕地质量评价、三普、三调等报告类型。",
+        "allowed-tools": "arcgis-mcp-server, Docx-Mcp_Server, bing-search, knowledge-db",
+        "parameters": [
+          {
+            "name": "data_path",
+            "description": "GIS数据源路径（GDB/SHP文件）或评价结果CSV文件",
+            "required": true
+          },
+          {
+            "name": "report_type",
+            "description": "报告类型：\"耕地质量评价\"/\"三普\"/\"三调\"。默认自动识别",
+            "required": false
+          },
+          {
+            "name": "output_path",
+            "description": "输出报告路径，默认\"test/03_Result/生成报告.docx\"",
+            "required": false
+          },
+          {
+            "name": "county_name",
+            "description": "县/镇名称，用于报告中地理描述",
+            "required": false
+          },
+          {
+            "name": "weights_config",
+            "description": "自定义评价指标权重配置（JSON格式）。不填则使用华南区默认值。格式：{\"水资源条件\": 0.0851, \"排水能力\": 0.0760, ...}",
+            "required": false
+          },
+          {
+            "name": "region_type",
+            "description": "区域类型：华南区/华北区/东北区/西南区/西北区。默认\"华南区\"",
+            "required": false
+          }
+        ]
+      },
+      "bodySha256": "b3e456b79ed23e3c7db256d4055f87787a6f2bd805feccfbe8f17e54cc7c2d36",
+      "fileSha256": "487be3f79b79dfdc6b88766991e5b8c80516644454fa73c394323223b0f022a4",
+      "name": "report-generate",
+      "agent": null,
+      "context": "inline",
+      "allowedTools": [
+        "arcgis-mcp-server",
+        "Docx-Mcp_Server",
+        "bing-search",
+        "knowledge-db"
+      ],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/result-confirm/SKILL.md",
+      "metadata": {
+        "name": "result-confirm",
+        "description": "验收 ArcGIS 工具执行结果，包含字段非空率门控。仅限 gis-tool Agent 使用。",
+        "agent": "gis-tool",
+        "context": "fork"
+      },
+      "bodySha256": "06c6902246898241d6ecedc183bcf88a31d6a59d2e6d68c3b8ea95affcea5755",
+      "fileSha256": "93a4f575029e035e5b52b3726fae0ac280501c7d73e1a1896a52e2f7f15bffaf",
+      "name": "result-confirm",
+      "agent": "gis-tool",
+      "context": "fork",
+      "allowedTools": [],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/task-data-manage/SKILL.md",
+      "metadata": {
+        "name": "task-data-manage",
+        "description": "根据任务类型进行任务数据筛选与清单生成。基于任务类型推导所需数据，扫描可用数据，并形成标准化的数据清单。仅供 @task-plan Agent 使用。",
+        "agent": "task-plan",
+        "context": "fork"
+      },
+      "bodySha256": "b99018c93f901883a6db0bbfe97d4289f53cfa82489a3c9ea0fda28958a8099b",
+      "fileSha256": "c156d173bfa81d09ed282b6cb09865a70ae747fd2b5b9477f749b661ced4e1ff",
+      "name": "task-data-manage",
+      "agent": "task-plan",
+      "context": "fork",
+      "allowedTools": [],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/tool-execute/SKILL.md",
+      "metadata": {
+        "name": "tool-execute",
+        "description": "执行 ArcGIS 空间分析工具的完整流程。仅限 gis-tool Agent 使用。",
+        "allowed-tools": "arcgis-mcp-server, bing-search",
+        "agent": "gis-tool",
+        "context": "fork"
+      },
+      "bodySha256": "cb13a3ac65ca95055f29a57c6086d69700e5e1cc0852ce70880e58ae3763a613",
+      "fileSha256": "85c148820ec8086c49bb46b29f3fe15a7c42dbc1ca6a4cadbb94059138f00d98",
+      "name": "tool-execute",
+      "agent": "gis-tool",
+      "context": "fork",
+      "allowedTools": [
+        "arcgis-mcp-server",
+        "bing-search"
+      ],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/tool-report/SKILL.md",
+      "metadata": {
+        "name": "tool-report",
+        "description": "Generates GIS process reports from task_plan.md, gis-tool-logs.json, outputs, and visualization assets.",
+        "agent": "report",
+        "allowed_tools": [
+          "arcgis-mcp-server",
+          "knowledge-db"
+        ]
+      },
+      "bodySha256": "379fea40a1ca11302c5fe906911e8f76b1a1c84ec74003bde4c43e2bff306118",
+      "fileSha256": "c47bc7548925cecc518f972db77108c0a086e79a271ddddd23bad8ac42a818a6",
+      "name": "tool-report",
+      "agent": "report",
+      "context": "inline",
+      "allowedTools": [
+        "arcgis-mcp-server",
+        "knowledge-db"
+      ],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/tool-retry/SKILL.md",
+      "metadata": {
+        "name": "tool-retry",
+        "description": "诊断并修复 ArcGIS 工具执行失败的错误。仅限 gis-tool Agent 使用。",
+        "allowed-tools": "bing-search, memory-server",
+        "agent": "gis-tool",
+        "context": "fork"
+      },
+      "bodySha256": "6794ccc0d0d77b764c1dd4d59970bdcd0ef2ca8b5874d7228386cb6b7e008c62",
+      "fileSha256": "fdbe8bc75db74c71aa7674983fdf8093c725935cddd6efea0cbeb935f5e88271",
+      "name": "tool-retry",
+      "agent": "gis-tool",
+      "context": "fork",
+      "allowedTools": [
+        "bing-search",
+        "memory-server"
+      ],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/visual-check/SKILL.md",
+      "metadata": {
+        "name": "visual-check",
+        "description": "对面状覆盖类 GIS 结果做视觉核验，发现空隙、孔洞、碎屑、覆盖缺失等空间形态问题。仅限 gis-tool Agent 在 result-confirm 阶段调用。",
+        "agent": "gis-tool",
+        "context": "fork"
+      },
+      "bodySha256": "89dba00898496a6b64072f390877d021c98c7075223a85862f2c8a7d72a86130",
+      "fileSha256": "9cbee024824a117b35db24487632be3c7fb120d3a60b6e1ba38c5fb93abc7db9",
+      "name": "visual-check",
+      "agent": "gis-tool",
+      "context": "fork",
+      "allowedTools": [],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    },
+    {
+      "path": "skills/workflow-dsl/SKILL.md",
+      "metadata": {
+        "name": "workflow-dsl",
+        "description": "Claude Code Workflow DSL 编写规范、原子 GIS 合同格式与示例。仅限 @task-plan Agent 调用。",
+        "agent": "task-plan",
+        "context": "fork"
+      },
+      "bodySha256": "36422da23df347976863c23815167cdd7af5fbfcb8e2aae6a0284dc73c563ee9",
+      "fileSha256": "7e393ed9ec2f70c759cdeb612d7eb687a493b139b1edb1f75fb37de046dedf66",
+      "name": "workflow-dsl",
+      "agent": "task-plan",
+      "context": "fork",
+      "allowedTools": [],
+      "invocation": {
+        "modelInvocable": true,
+        "userInvocable": true
+      }
+    }
+  ],
+  "workflows": [
+    "workflows/gis-data-profile-only.md",
+    "workflows/gis-debug-analysis.md",
+    "workflows/gis-standard-analysis.md",
+    "workflows/gis-tool-execution-only.md",
+    "workflows/gis-visual-report.md",
+    "workflows/README.md"
+  ]
+}

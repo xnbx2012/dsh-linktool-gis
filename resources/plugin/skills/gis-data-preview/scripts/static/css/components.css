@@ -1,0 +1,278 @@
+/* ===== Base Map Switcher ===== */
+.basemap-switch {
+    display: flex;
+    gap: 4px;
+    padding: 6px 10px;
+}
+
+.basemap-btn {
+    flex: 1;
+    padding: 5px 8px;
+    font-size: 11px;
+    background: #f0f0f0;
+    border: 1px solid #d0d0d0;
+    color: #555;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.15s;
+}
+
+.basemap-btn:hover {
+    background: #e0e0e0;
+    color: #333;
+}
+
+.basemap-btn.active {
+    background: #1565c0;
+    border-color: #1976d2;
+    color: #fff;
+}
+
+/* ===== Layer List ===== */
+.layer-list {
+    padding: 0;
+}
+
+/* Layer group wrapper (item + legend) */
+.layer-group {
+    border-bottom: 1px solid #e8e8e8;
+    transition: background 0.1s;
+}
+
+.layer-group:hover {
+    background: #f0f4ff;
+}
+
+.layer-item {
+    display: flex;
+    align-items: center;
+    padding: 5px 10px;
+}
+
+.layer-item input[type="checkbox"] {
+    margin-right: 6px;
+    cursor: pointer;
+    accent-color: #1976d2;
+}
+
+.layer-item .layer-color {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    margin-right: 6px;
+    border: 1px solid rgba(0,0,0,0.15);
+}
+
+.layer-item .layer-name {
+    flex: 1;
+    font-size: 12px;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.layer-item .layer-name:hover {
+    color: #1565c0;
+    text-decoration: underline;
+}
+
+.layer-item .layer-actions {
+    display: flex;
+    gap: 1px;
+    margin-left: 4px;
+}
+
+.layer-action-btn {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 1px 3px;
+    border-radius: 2px;
+    line-height: 1;
+    width: 18px;
+    text-align: center;
+}
+
+.layer-action-btn:hover {
+    background: #e0e0e0;
+    color: #333;
+}
+
+.layer-action-btn.zoom-btn:hover {
+    color: #1565c0;
+}
+
+.layer-action-btn.move-up-btn:hover,
+.layer-action-btn.move-down-btn:hover {
+    color: #1565c0;
+}
+
+/* ===== Layer Legend ===== */
+.layer-legend {
+    padding: 4px 10px 6px 32px;
+    font-size: 11px;
+    color: #777;
+    background: #fafafa;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+}
+
+.legend-symbol {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    border: 1px solid rgba(0,0,0,0.12);
+}
+
+.legend-label {
+    color: #666;
+}
+
+/* ===== Attribute Table Tabs ===== */
+.attr-tabs {
+    display: flex;
+    align-items: stretch;
+    background: #f0f0f0;
+    border-bottom: 1px solid #d0d0d0;
+    overflow-x: auto;
+    flex-shrink: 0;
+    min-height: 0;
+}
+
+.attr-tabs:empty {
+    display: none;
+}
+
+.attr-tab {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: #666;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    user-select: none;
+    transition: all 0.1s;
+    position: relative;
+}
+
+.attr-tab:hover {
+    background: #e4e4e4;
+    color: #333;
+}
+
+.attr-tab.active {
+    color: #1565c0;
+    border-bottom-color: #1565c0;
+    background: #fff;
+    font-weight: 600;
+}
+
+.attr-tab .tab-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    font-size: 12px;
+    line-height: 1;
+    border-radius: 2px;
+    color: #999;
+    cursor: pointer;
+}
+
+.attr-tab .tab-close:hover {
+    background: #d32f2f;
+    color: #fff;
+}
+
+/* ===== Attribute Tab Panels ===== */
+.attr-tab-panel {
+    display: none;
+}
+
+.attr-tab-panel.active {
+    display: block;
+}
+
+/* ===== Log Content ===== */
+.log-content {
+    padding: 4px 8px;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+.log-entry {
+    color: #666;
+    padding: 1px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.log-entry .log-time {
+    color: #aaa;
+    margin-right: 6px;
+}
+
+.log-entry.info    { color: #1565c0; }
+.log-entry.success { color: #2e7d32; }
+.log-entry.warn    { color: #e65100; }
+.log-entry.error   { color: #c62828; }
+
+/* ===== Leaflet Overrides (light theme) ===== */
+.leaflet-control-zoom a {
+    background: #fff !important;
+    color: #555 !important;
+    border-color: #ccc !important;
+}
+
+.leaflet-control-zoom a:hover {
+    background: #f0f0f0 !important;
+}
+
+.leaflet-control-scale-line {
+    background: rgba(255, 255, 255, 0.85) !important;
+    color: #555 !important;
+    border-color: #999 !important;
+    font-size: 10px !important;
+}
+
+.leaflet-control-attribution {
+    background: rgba(255, 255, 255, 0.7) !important;
+    color: #888 !important;
+    font-size: 10px !important;
+}
+
+.leaflet-control-attribution a {
+    color: #1565c0 !important;
+}
+
+/* ===== Popup light theme ===== */
+.leaflet-popup-content-wrapper {
+    background: #fff !important;
+    color: #333 !important;
+    border-radius: 4px !important;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.15) !important;
+}
+
+.leaflet-popup-tip {
+    background: #fff !important;
+}
+
+.leaflet-popup-content {
+    font-size: 12px;
+    margin: 8px 12px !important;
+}

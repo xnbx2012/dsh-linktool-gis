@@ -1,0 +1,80 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|Delete|Read|Glob|Grep|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project python \"${DSH_ADAPTER_ROOT}/scripts/hook-runner.py\" \"${DSH_PLUGIN_ROOT}/scripts/modify-protect-hook/main.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project python \"${DSH_ADAPTER_ROOT}/scripts/hook-runner.py\" \"${DSH_PLUGIN_ROOT}/scripts/modify-protect-hook/bash_guard.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__plugin_linktool-plugin_arcgis-mcp-server__execute_gis_tool",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project python \"${DSH_PLUGIN_ROOT}/scripts/param-validate/main.py\""
+          },
+          {
+            "type": "command",
+            "command": "uv run --no-project python \"${DSH_PLUGIN_ROOT}/scripts/data-backup/main.py\""
+          },
+          {
+            "type": "command",
+            "command": "uv run --no-project python \"${DSH_ADAPTER_ROOT}/scripts/hook-runner.py\" \"${DSH_PLUGIN_ROOT}/scripts/modify-protect-hook/gis.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|Update|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project python \"${DSH_PLUGIN_ROOT}/scripts/modify-protect-hook/anti-bypass.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__plugin_linktool-plugin_arcgis-mcp-server__execute_gis_tool",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project python \"${DSH_ADAPTER_ROOT}/scripts/hook-runner.py\" \"${DSH_PLUGIN_ROOT}/scripts/gis-tool-log/enhanced_record.py\""
+          },
+          {
+            "type": "command",
+            "command": "uv run --no-project python \"${DSH_PLUGIN_ROOT}/scripts/result-validate/main.py\""
+          },
+          {
+            "type": "command",
+            "command": "uv run --no-project python \"${DSH_PLUGIN_ROOT}/scripts/failure-pattern-detector/main.py\""
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project python \"${DSH_PLUGIN_ROOT}/scripts/context-compress/main.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

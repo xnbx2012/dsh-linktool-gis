@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Harness runtime / session artifacts (large, machine-specific)
+.runtime/
+.dsh/
+02_WorkSpace/
+
+# Full source archive with .venv virtual environments (machine-specific paths;
+# regenerated with `node scripts/archive-resources.mjs` when packaging a release)
+resources-full.tar.gz
+
+# Python virtual environments — rebuilt by uv from pyproject.toml/uv.lock at install time
+**/.venv/
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Git LFS artifacts from other toolchains
+.lfsconfig
+
+# OS noise
+Thumbs.db
+Desktop.ini

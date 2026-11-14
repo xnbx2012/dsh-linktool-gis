@@ -1,0 +1,89 @@
+{
+  "author": {
+    "email": "xnbx2012@163.com",
+    "name": "LinkTool"
+  },
+  "description": "A plugin that help claude code with GIS spatial analysis using ArcGIS API for Python.",
+  "license": "MIT",
+  "mcpServers": {
+    "amap-maps": {
+      "args": [
+        "-y",
+        "@amap/amap-maps-mcp-server"
+      ],
+      "command": "npx",
+      "env": {
+        "AMAP_MAPS_API_KEY": "${AMAP_MAPS_API_KEY}"
+      }
+    },
+    "arcgis-mcp-server": {
+      "args": [
+        "run",
+        "--with",
+        "mcp[cli]",
+        "python",
+        "${CLAUDE_PLUGIN_ROOT}/scripts/arcgis-mcp-server/main.py"
+      ],
+      "command": "uv"
+    },
+    "bing-search": {
+      "args": [
+        "-y",
+        "bing-cn-mcp"
+      ],
+      "command": "npx"
+    },
+    "color-style": {
+      "args": [
+        "run",
+        "--with",
+        "mcp[cli]",
+        "python",
+        "${CLAUDE_PLUGIN_ROOT}/scripts/color-style-mcp/color_style_server.py"
+      ],
+      "command": "uv",
+      "cwd": "${CLAUDE_PLUGIN_ROOT}/scripts/color-style-mcp"
+    },
+    "knowledge-db": {
+      "args": [],
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/knowledge-db-mcp/run.bat",
+      "env": {
+        "SILICONFLOW_API_KEY": "${SILICONFLOW_API_KEY}"
+      }
+    },
+    "memory-server": {
+      "headers": {
+        "X-Auth-Password": "${LINKTOOL_MEMORY_PASSWORD}",
+        "X-Auth-Username": "${LINKTOOL_MEMORY_USERNAME}"
+      },
+      "type": "streamable-http",
+      "url": "${LINKTOOL_MEMORY_URL}"
+    },
+    "pdf-reader-mcp": {
+      "args": [
+        "run",
+        "--with",
+        "mcp[cli]",
+        "--with",
+        "pymupdf",
+        "python",
+        "${CLAUDE_PLUGIN_ROOT}/scripts/pdf-reader-mcp/main.py"
+      ],
+      "command": "uv"
+    },
+    "MiniMax": {
+      "command": "uvx",
+      "args": [
+        "minimax-coding-plan-mcp",
+        "-y"
+      ],
+      "env": {
+        "MINIMAX_API_KEY": "${MINIMAX_API_KEY}",
+        "MINIMAX_API_HOST": "${MINIMAX_API_HOST}"
+      }
+    }
+  },
+  "name": "linktool-plugin",
+  "repository": "https://github.com/Link-Tool/LinkTool-ClaudeCode",
+  "version": "3.0.0"
+}

@@ -1,0 +1,4 @@
+- insert:
+  - id: linktool-plugin
+    name: '@linktool/dsh-plugin'
+    config: {}
