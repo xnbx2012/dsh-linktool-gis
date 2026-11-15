@@ -2,7 +2,7 @@
 
 将原 Claude Code GIS 插件迁移为 DeepSeek Harness 的 Cordis 插件。包含 **6 个 Agent、21 个注册 Skill、8 个 MCP 配置、10 个已启用的 hook 命令绑定**，以及完整的源程序、参考资料、二进制和依赖资料。原文件存放在 `resources/plugin`，提示词正文没有改写。
 
-目标版本：**DeepSeek Harness 0.2.0-rc.2**。不要直接在 0.1.x 上加载；两个版本的 Agent、Skill、Workflow 接口不同。
+目标版本：**DeepSeek Harness 0.2.1-rc.5**。不要直接在 0.1.x 或 0.2.0-rc.2 上加载；这些版本的 Agent、Skill、Workflow 接口不同。
 
 ## 0. 凭据说明（公开仓库）
 
@@ -72,7 +72,7 @@ npm run install:plugin -- linktool
 启动（请在你的 GIS 项目目录运行，工作目录是数据工作空间）：
 
 ```powershell
-npx @deepseek-ai/dsh@0.2.0-rc.2 --profile web
+npx @deepseek-ai/dsh@0.2.1-rc.5 --profile web
 ```
 
 自定义 profile 将末尾 `web` 换成安装时的名称。默认 Web 地址通常为 `http://127.0.0.1:3080`，以启动日志显示的地址为准。
@@ -131,7 +131,7 @@ npm run build
 npm run release
 ```
 
-会在旁边生成 `dsh-release/linktool-dsh-3.0.0.zip`，包含顶层 `dsh` 文件夹、中文说明、已编译入口、完整源资源归档、源码、锁文件与安装脚本；不包含开发 `node_modules`、运行缓存或你的 Harness 会话。把 **zip 整体**发给接收方，让对方解压并按第 1 节安装。再次生成前请移走已有 `dsh-release/dsh` 文件夹，防止新旧文件混杂。
+会在旁边生成 `dsh-release/linktool-dsh-3.0.1.zip`，包含顶层 `dsh` 文件夹、中文说明、已编译入口、完整源资源归档、源码、锁文件与安装脚本；不包含开发 `node_modules`、运行缓存或你的 Harness 会话。把 **zip 整体**发给接收方，让对方解压并按第 1 节安装。再次生成前请移走已有 `dsh-release/dsh` 文件夹，防止新旧文件混杂。
 
 **当前仓库版本已将所有凭据替换为 `${ENV_VAR}` 占位符，适合公开发布。** 接收方使用自己的环境变量注入凭据，无需修改提示词；环境变量优先于配置值。若需要生成包含真实凭据的私下分发包，请在本地配置文件中填入凭据后执行 `npm run build` 与 `npm run release`，并注意不要把该包或包含凭据的提交推送到公开仓库。
 

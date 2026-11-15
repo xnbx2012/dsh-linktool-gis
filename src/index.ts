@@ -1,11 +1,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type {} from '@deepseek-ai/dsh-user-questions';
+import type { SessionId } from '@deepseek-ai/dsh-session';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent';
-import type { SubagentRun, ResolvedSubagentStartRequest, SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
+import type { SubagentRun, SubagentActivation, ResolvedSubagentStartRequest, SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
 import { renderSkillContent } from '@deepseek-ai/dsh-skill';
 import { resolvedServers } from './mcp.js';
 import * as McpClient from '@deepseek-ai/dsh-mcp-client';
@@ -19,6 +20,10 @@ export const inject = ['tools', 'skills', 'systemPrompt', 'subagents', 'agents']
 export interface Config { hooksEnabled?: boolean; mcpEnabled?: boolean; enabledServers?: string[] }
 interface AgentState { agent: AgentRecord; parent?: Agent; activeSkill?: SkillRecord; skillArgs?: string; steps: number; approved?: boolean; registrations: Map<string, () => void>; releaseRestriction?: () => void; preparingAliases?: boolean }
 interface McpConfig { type?: string; command?: string; args?: string[]; env?: Record<string, string>; cwd?: string; url?: string; headers?: Record<string, string> }
+// 0.2.1-rc.5: startActivation returns a SubagentActivation; adapt it to the SubagentRun shape the rest of the adapter consumes.
+// The inner activation's childId is already registered with the subagent manager, so the wrapping
+// provider must surface a fresh run id — the manager rejects provider runs whose id collides with a live session.
+const toRun = (activation: SubagentActivation): SubagentRun => ({ id: randomUUID() as SessionId, result: activation.result, dispose: () => activation.dispose() });
 
 export function apply(ctx: Context, overrides: Config = {}): void {
   const config: RuntimeConfig = { ...loadRuntime(), ...overrides };
@@ -80,13 +85,15 @@ export function apply(ctx: Context, overrides: Config = {}): void {
     const options: AgentOptions = { ...request.agentOptions };
     const alias = record.metadata.model ? config.modelAliases[String(record.metadata.model)] : undefined;
     if (alias?.mode === 'route') Object.assign(options, { provider: alias.provider, model: alias.model, ...(alias.reasoningEffort ? { reasoningEffort: alias.reasoningEffort } : {}) });
-    const provider = request.parent.ctx.get('subagents')!.getProvider(carryContext ? 'fork' : 'spawn');
-    if (!provider) throw new Error(`ENV_ERROR: native ${carryContext ? 'fork' : 'spawn'} provider unavailable`);
+    const providerName = carryContext ? 'fork' : 'spawn';
+    const runtime = request.parent.ctx.get('subagents')!;
+    if (!runtime.getProvider(providerName)) throw new Error(`ENV_ERROR: native ${providerName} provider unavailable`);
     const state: AgentState = { agent: record, parent: request.parent, activeSkill: skill, skillArgs: skill ? request.prompt.filter(b => b.type === 'text').map(b => b.type === 'text' ? b.text : '').join('\n') : undefined, steps: 0, registrations: new Map() };
-    return pending.run(state, () => provider.start({ ...request, agentOptions: options, maxDepth: config.maxAgentDepth }));
+    return pending.run(state, async () => toRun(await runtime.startActivation({ provider: providerName, label: request.label ?? record.name, delivery: 'caller', signal: request.signal, request: { ...request, agentOptions: options, maxDepth: config.maxAgentDepth } })));
   }
-  function start(name: string, request: SubagentStartRequest): Promise<SubagentRun> { return ctx.subagents.start('linktool:' + agentName(name), request); }
-  for (const record of catalog.agents) ctx.subagents.registerProvider({ name: 'linktool:' + record.name, capabilities: { agentOptions: true, outputSchema: true, depthLimit: true, toolFilter: true, persona: true }, inheritsParentContext: false, start: request => dispatch(record.name, request) });
+  function start(name: string, request: SubagentStartRequest): Promise<SubagentRun> { return ctx.subagents.startActivation({ provider: 'linktool:' + agentName(name), label: request.label ?? agentName(name), delivery: 'caller', signal: request.signal, request }).then(toRun); }
+  const providerCapabilities = { agentOptions: true, agentPreset: true, outputSchema: true, depthLimit: true };
+  for (const record of catalog.agents) ctx.subagents.registerProvider({ name: 'linktool:' + record.name, capabilities: providerCapabilities, inheritsParentContext: false, start: request => dispatch(record.name, request) });
   registerWorkflow(ctx, dispatch, async exec => {
     if (!exec.agent) throw new Error('Workflow requires a caller');
     if (benchmarkPolicy(exec.agent).workflow) throw new Error('Benchmark ablation: Workflow removed');
@@ -139,10 +146,10 @@ export function apply(ctx: Context, overrides: Config = {}): void {
     const record = skill.agent ? getAgent(skill.agent) : state?.agent;
     if (!record) throw new Error(`Fork skill ${name} has no agent binding`);
     const providerName = `linktool-skill:${skill.name}`;
-    const run = await ctx.subagents.start(providerName, { parent: agent, prompt: [{ type: 'text', text: args || `执行技能 ${skill.name}。调用者必须通过 args 显式传入所需输入；没有输入时返回需要补充的信息。` }], label: skill.name, signal });
+    const run = toRun(await ctx.subagents.startActivation({ provider: providerName, label: skill.name, delivery: 'caller', signal, request: { parent: agent, prompt: [{ type: 'text', text: args || `执行技能 ${skill.name}。调用者必须通过 args 显式传入所需输入；没有输入时返回需要补充的信息。` }] } }));
     try { const result = await run.result; if (result.stopReason !== 'completed') throw new Error(`Fork skill stopped: ${result.stopReason}`); return result.structured ?? result.output; } finally { await run.dispose(); }
   }
-  for (const skill of catalog.skills.filter(s => s.context === 'fork')) ctx.subagents.registerProvider({ name: 'linktool-skill:' + skill.name, capabilities: { agentOptions: true, outputSchema: true, depthLimit: true, toolFilter: true, persona: true }, inheritsParentContext: false, async start(request) {
+  for (const skill of catalog.skills.filter(s => s.context === 'fork')) ctx.subagents.registerProvider({ name: 'linktool-skill:' + skill.name, capabilities: providerCapabilities, inheritsParentContext: false, async start(request) {
     if (benchmarkPolicy(request.parent).skills?.includes(skill.name)) throw new Error('Benchmark ablation: fork skill removed');
     const caller = states.get(request.parent)?.agent;
     if (!skillAllowed(skill, caller, config)) throw new Error('Skill agent binding denied');

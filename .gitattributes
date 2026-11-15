@@ -1,0 +1,3 @@
+# 资源完整性清单（config/source-manifest.json）按原机器 CRLF 文本 + 原始二进制字节记录。
+# 统一按 CRLF 检出文本资源，使 npm run verify 的 SHA-256 校验在任何平台一致通过。
+resources/** text=auto eol=crlf

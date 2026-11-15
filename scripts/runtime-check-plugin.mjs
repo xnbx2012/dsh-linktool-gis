@@ -34,12 +34,14 @@ export function apply(ctx) {
         for(const prefix of ['arcgis-mcp-server','pdf-reader-mcp','color-style','knowledge-db','MiniMax','amap-maps','bing-search']) assert(ctx.tools.schemas().some(s=>s.name.startsWith('mcp__'+prefix+'__')),prefix+' native registration');
         console.log('RUNTIME PASS 7 native MCP registrations');
       }
-      if (process.env.LINKTOOL_VERIFY_GIS === '1') {
+// 0.2.1-rc.5: startActivation 取代了 subagents.start；activation 结果通过 .result/.dispose 使用。
+const startLinktool = (name, request) => ctx.subagents.startActivation({ provider: name, label: request.label ?? name, delivery: 'caller', signal: request.signal, request });
+if (process.env.LINKTOOL_VERIFY_GIS === '1') {
         const locate = spawnSync('python',['-c','import sys;sys.path.insert(0,sys.argv[1]);from find_arcpy import find_py_interpreter;print(find_py_interpreter() or "")',join(resourceRoot,'scripts/shared')],{encoding:'utf8',windowsHide:true,env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'}});
         const python = locate.stdout.trim(); assert(python,'ArcGIS Pro Python required');
         const create = spawnSync(python,['-c','import arcpy,os,sys;root=sys.argv[1];gdb=os.path.join(root,"migration_smoke.gdb");arcpy.env.overwriteOutput=True;arcpy.management.CreateFileGDB(root,"migration_smoke.gdb") if not arcpy.Exists(gdb) else None;fc=arcpy.management.CreateFeatureclass(gdb,"migration_point","POINT",spatial_reference=4326)[0];cursor=arcpy.da.InsertCursor(fc,["SHAPE@XY"]);cursor.insertRow([(0,0)]);del cursor;print(fc)',join(cwd,'02_WorkSpace')],{encoding:'utf8',windowsHide:true,timeout:90000});
         assert.equal(create.status,0,create.stderr);const feature=create.stdout.trim();
-        const run=await ctx.subagents.start('linktool:gis-tool',{parent:agent,signal:new AbortController().signal,prompt:[{type:'text',text:'integration fixture role'}]});await run.result;
+        const run=await startLinktool('linktool:gis-tool',{parent:agent,signal:new AbortController().signal,prompt:[{type:'text',text:'integration fixture role'}]});await run.result;
         const result=await ctx.tools.execute({callId:randomUUID(),name:'mcp__arcgis-mcp-server__execute_gis_tool',arguments:{tool_name:'arcpy.management.GetCount',parameters:{in_rows:feature}},agent:run.localAgent,signal:new AbortController().signal});
         assert(!result.isError,JSON.stringify(result));assert(JSON.stringify(result).includes('1'),JSON.stringify(result));assert.equal(JSON.parse(readFileSync(join(cwd,'02_WorkSpace','gis-tool-logs.json'),'utf8')).at(-1).status,'success','successful ArcPy result must be logged as success');await run.dispose();
         console.log('RUNTIME PASS actual ArcPy GetCount through GIS agent + enabled hooks');
@@ -48,7 +50,7 @@ export function apply(ctx) {
       agent.followup(createUserMessage({content:[{type:'text',text:'PARENT_HISTORY_SENTINEL'}],source:{kind:'user'}})); await agent.whenIdle();
       for (const record of catalog.agents) {
         const before = calls.length;
-        const run = await ctx.subagents.start('linktool:' + record.name, { parent: agent, signal: new AbortController().signal, prompt: [{ type: 'text', text: 'explicit input only' }] });
+        const run = await startLinktool('linktool:' + record.name, { parent: agent, signal: new AbortController().signal, prompt: [{ type: 'text', text: 'explicit input only' }] });
         const result = await run.result;
         assert.equal(result.stopReason, 'completed', record.name + ': ' + JSON.stringify(result));
         assert.equal(calls.length, before + 1);

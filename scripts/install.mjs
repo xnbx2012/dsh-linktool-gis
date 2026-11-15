@@ -40,5 +40,5 @@ if (!process.exitCode) {
   }
   const restore = spawnSync(process.execPath, [join(root,'scripts/restore-resources.mjs'),installed], {stdio:'inherit',windowsHide:true});
   if (restore.status !== 0) { process.exitCode = restore.status ?? 1; }
-  else console.log(`安装完成。运行 npx @deepseek-ai/dsh@0.2.0-rc.2 --profile ${profile} 启动。`);
+  else console.log(`安装完成。运行 npx @deepseek-ai/dsh@0.2.1-rc.5 --profile ${profile} 启动。`);
 }

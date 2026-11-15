@@ -78,7 +78,7 @@ export function unwrapResult(run: SubagentRun): SubagentRun {
   }) };
 }
 export function registerWorkflow(ctx: Context, dispatch: (name: string, request: ResolvedSubagentStartRequest) => Promise<SubagentRun>, authorize: (exec: ToolRunContext) => Promise<void> = async () => {}): void {
-  ctx.subagents.registerProvider({ name: 'linktool-workflow', capabilities: { agentOptions: true, outputSchema: true, depthLimit: true, toolFilter: true, persona: true }, inheritsParentContext: false, async start(request) {
+  ctx.subagents.registerProvider({ name: 'linktool-workflow', capabilities: { agentOptions: true, agentPreset: true, outputSchema: true, depthLimit: true }, inheritsParentContext: false, async start(request) {
     const text = request.prompt.filter(b => b.type === 'text').map(b => b.type === 'text' ? b.text : '').join('');
     const envelope: WorkflowEnvelope = JSON.parse(text);
     if (envelope.linktoolWorkflow !== 1 || typeof envelope.prompt !== 'string') throw new Error('Invalid LinkTool Workflow envelope');

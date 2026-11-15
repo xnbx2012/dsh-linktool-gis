@@ -10,9 +10,13 @@ import { runCommand, HookBridge } from '../lib/hooks.js';
 import { loadRuntime } from '../lib/catalog.js';
 import { aliasDefinition, translateCommand } from '../lib/tools.js';
 const manifest = JSON.parse(readFileSync(join(packageRoot, 'config/source-manifest.json')));
-for (const file of manifest.files) assert.equal(createHash('sha256').update(readFileSync(join(resourceRoot, file.path))).digest('hex'), file.sha256, file.path);
+// 完整性校验只针对随 git 仓库分发的文件：.venv/__pycache__ 由安装器从 resources-full.tar.gz
+// 恢复或按 uv.lock 重建；两个 settings.local.json 是原作者 Claude Code 的个人本地设置，不随仓库分发。
+const notDistributed = (path) => path.includes('/.venv/') || path.includes('/__pycache__/') || path.endsWith('/.claude/settings.local.json');
+for (const file of manifest.files) if (!notDistributed(file.path)) assert.equal(createHash('sha256').update(readFileSync(join(resourceRoot, file.path))).digest('hex'), file.sha256, file.path);
+const distributedCount = manifest.files.filter(f => !notDistributed(f.path)).length;
 for (const doc of [...catalog.agents, ...catalog.skills]) body(doc);
-console.log(`PASS 完整性：${manifest.files.length} 个文件，${catalog.agents.length} agents，${catalog.skills.length} skills，所有正文原样保留`);
+console.log(`PASS 完整性：${distributedCount} 个分发文件哈希一致（清单共 ${manifest.files.length} 项，.venv 等未分发项由安装器恢复），${catalog.agents.length} agents，${catalog.skills.length} skills，所有正文原样保留`);
 for (const token of ['DSH_PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT', 'CLAUDE_PLUGIN_DIR']) assert.equal(expandPaths('${' + token + '}$'), resourceRoot.replaceAll('\\', '/'));
 assert.equal(resourcePath('${CLAUDE_PLUGIN_DIR}/bin/officecli.exe'), join(resourceRoot, 'bin', 'officecli.exe'));
 for (const config of Object.values(resolvedServers())) assert(!JSON.stringify(config).includes('${'));
