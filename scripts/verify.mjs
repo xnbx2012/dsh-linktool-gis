@@ -12,8 +12,11 @@ import { aliasDefinition, translateCommand } from '../lib/tools.js';
 const manifest = JSON.parse(readFileSync(join(packageRoot, 'config/source-manifest.json')));
 // 完整性校验只针对随 git 仓库分发的文件：.venv/__pycache__ 由安装器从 resources-full.tar.gz
 // 恢复或按 uv.lock 重建；两个 settings.local.json 是原作者 Claude Code 的个人本地设置，不随仓库分发。
+// 文本文件哈希前归一化行尾（\r\n→\n）：manifest 按 LF 基准记录，检出/解压造成的行尾差异不影响语义。
 const notDistributed = (path) => path.includes('/.venv/') || path.includes('/__pycache__/') || path.endsWith('/.claude/settings.local.json');
-for (const file of manifest.files) if (!notDistributed(file.path)) assert.equal(createHash('sha256').update(readFileSync(join(resourceRoot, file.path))).digest('hex'), file.sha256, file.path);
+const isText = (path) => /\.(md|json|py|txt|ya?ml|js|mjs|ts|html|css|bat|toml|cfg|sh|xml|csv|gitignore|lock|TAG|prj|bakcup|pyc|hold|in)$/.test(path) || path.includes('/.hold') || path.endsWith('.python-version') || /(^|\/)(INSTALLER|METADATA|RECORD|REQUESTED|WHEEL|top_level)$/.test(path.split('/').pop() || '');
+const normalized = (raw, path) => isText(path) ? Buffer.from(raw.toString('utf8').replace(/\r\n/g, '\n'), 'utf8') : raw;
+for (const file of manifest.files) if (!notDistributed(file.path)) assert.equal(createHash('sha256').update(normalized(readFileSync(join(resourceRoot, file.path)), file.path)).digest('hex'), file.sha256, file.path);
 const distributedCount = manifest.files.filter(f => !notDistributed(f.path)).length;
 for (const doc of [...catalog.agents, ...catalog.skills]) body(doc);
 console.log(`PASS 完整性：${distributedCount} 个分发文件哈希一致（清单共 ${manifest.files.length} 项，.venv 等未分发项由安装器恢复），${catalog.agents.length} agents，${catalog.skills.length} skills，所有正文原样保留`);

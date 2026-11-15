@@ -1,3 +1,6 @@
-# 资源完整性清单（config/source-manifest.json）按原机器 CRLF 文本 + 原始二进制字节记录。
-# 统一按 CRLF 检出文本资源，使 npm run verify 的 SHA-256 校验在任何平台一致通过。
-resources/** text=auto eol=crlf
+# 资源按 git 原字节检出，禁止行尾转换。source-manifest.json / catalog.json 均按 LF 归一基准记录，
+# 运行时（lib/catalog.js 的 body）与校验脚本（scripts/verify.mjs）在哈希前统一 \r\n→\n，
+# 因此无论本机 autocrlf 如何设置、或经 zip 解压引入 CRLF，完整性校验都稳定通过。
+resources/** -text
+resources-full.tar.gz -text
+config/** -text

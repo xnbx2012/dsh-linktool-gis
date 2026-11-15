@@ -18,8 +18,8 @@
         ],
         "maxTurns": 8
       },
-      "bodySha256": "fa3937fe99887eba6fb3f95bf915dc4b8e4ee130279c7330e341ea4565cedb7b",
-      "fileSha256": "2ecb418fb7b7c3aa0d389da3025344c7c3e01d6f1cd2b50c5c0510f1d3a5c3c3",
+      "bodySha256": "1c851cfbb008fb9dbe10b27fd5100c2626e52cdc8826fe6ab9db6e2d8185a6ec",
+      "fileSha256": "4dbae950f37cbe820a05b8f13a08f65456a4eec13b41cd6ba14cd0c44a1bbd74",
       "name": "data-retrieval",
       "tools": [
         "Glob",
@@ -62,8 +62,8 @@
           "color-style"
         ]
       },
-      "bodySha256": "a027da1504a180ebb1122c04598c716d874be7b0ddd5c5f3fe6e96c558e82d3b",
-      "fileSha256": "754bdfc95da60db7422b579f7c3f7133d13d2107bde801b3bad850b358c6e318",
+      "bodySha256": "c1ccbe09d14cee21bba00e9c006b249eb36932609de9e20ea381d50f767ca009",
+      "fileSha256": "5588adfb261693bd5ca56a68df6e248df38cde1ba5e55934748f33c9c578f90b",
       "name": "gis-data-visualisation",
       "tools": [
         "Read",
@@ -116,8 +116,8 @@
           "visual-check"
         ]
       },
-      "bodySha256": "0e442984b8af974c9b6bf3656e20304a423c4e0aadb9a7089a28d1eef3db0eb2",
-      "fileSha256": "1228ecac8b1c818d7b1d3aed3ac42732627ee7c6b503705bea0841b107407bdb",
+      "bodySha256": "43746df8693441ff82a66beb7cd299215cb7a2d08197055c1dc350426482e63a",
+      "fileSha256": "8d37003a847afd6875b960316772d875d22bd024834c24a0f79e679ac158283e",
       "name": "gis-tool",
       "tools": [
         "Glob",
@@ -238,8 +238,8 @@
           "officecli"
         ]
       },
-      "bodySha256": "536030b7e6bea064c7eef1439f1ddf5f9e4cf2ca6d43e93420a9a90bf6b9498c",
-      "fileSha256": "80084bec9c5a31b2725df474f0cc901f0bab42ec17fb9690249c5d914260760a",
+      "bodySha256": "e3b7a5a7eef68fe0cad8f9178b04ae2e8a354ddcc366787f5f3d9237867c3818",
+      "fileSha256": "5eb5fd8f179fe09c4c05895de28d9501d860f66b86ecef34a62a30916745f862",
       "name": "report",
       "tools": [
         "Read",
@@ -281,8 +281,8 @@
         "skills": "gis-task-plan, data-doubt-check, task-data-manage, workflow-dsl",
         "tools": "Glob, Grep, Read, WebFetch, WebSearch, Bash, ListMcpResourcesTool, ReadMcpResourceTool, mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents, mcp__plugin_linktool-plugin_arcgis-mcp-server__query_feature_attributes, mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties, mcp__knowledge-db__search_knowledge, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, TaskStop, ToolSearch, Workflow, Write, Edit"
       },
-      "bodySha256": "a113c5510f545db702c05db1f7d5e8649bf057aa5035aa18c30a50c4fb511d15",
-      "fileSha256": "a7c4b12f41c52faa9ba2a0c2d191f97052d1c2f32a8d445ab5fffff890779e9c",
+      "bodySha256": "d7a680c6850fb4ff74a8f329ff4b46dfff7d77f25d6b15519f695f5e4807607a",
+      "fileSha256": "54836cf5bcf4bb631278b5b6d2bae0cd3b42def8d222901890f77a656c5320f2",
       "name": "task-plan",
       "tools": [
         "Glob",
@@ -326,8 +326,8 @@
         "description": "Generates analytical, evaluation, and conclusion reports from verified GIS results and statistics.",
         "agent": "report"
       },
-      "bodySha256": "67b3e2ceb52b6d6c83b8797b59932fab75f75fa6247b8627f02ad6dc8f6f37fa",
-      "fileSha256": "e399c6c17ad51cfe4e62aaa2ab007d4f1af047d98d59971ac67c6bb44b5cbf43",
+      "bodySha256": "912f4436dc8fc61dbd73178d19d83cad8dbd5ef42a7811223ed0d9661c64c7eb",
+      "fileSha256": "2d51a67ce5558a7f9943ba33edac7353f3437f586f569ab63e2892583a6a30c3",
       "name": "conclusion-report",
       "agent": "report",
       "context": "inline",
@@ -381,8 +381,8 @@
         "agent": "data-retrieval",
         "context": "fork"
       },
-      "bodySha256": "7fc84b36213e44c1446f35c7bab6d32a63af64f9413af52c5c1ff14be859d3a5",
-      "fileSha256": "c40101712e7110aabe084172c4f16c54cad3d65be5ce088ed2233f9df1898e70",
+      "bodySha256": "2c120fb9988c3a7b830c4b500464daf924db3ba94b1ea114b66878f4c0152069",
+      "fileSha256": "28f1d000bb0a5b7f48b0c9ccb155fa57dc25cf41f19ffd3960fb1221cd7c2acd",
       "name": "data-retrieval",
       "agent": "data-retrieval",
       "context": "fork",
@@ -398,8 +398,8 @@
         "name": "gis-data-preview",
         "description": "将 .shp / .gdb / .GeoJson 数据推送到网页实现数据实时预览，支持点/线/面图层的简单渲染、唯一值渲染和分级渲染。仅限`gis-data-visualisation`智能体调用。"
       },
-      "bodySha256": "93d135c37e3643dc190bb97382b6811bf994c27ae39d4fb5beed4746dae8b89a",
-      "fileSha256": "9dfc11c225551ca2778e3b245f00909389a1e064984611fbff99b77e5e8163fe",
+      "bodySha256": "d35d3d0d74d783395bc0e72baefd846c0679c9810b7f4aa87ba346b8d882cd8e",
+      "fileSha256": "5b9c1d234608113af13186115cb33401f6bbd917e511eb3756ac2cf53f6b1705",
       "name": "gis-data-preview",
       "agent": null,
       "context": "inline",
@@ -418,8 +418,8 @@
         "agent": "task-plan",
         "argument-hint": "[用户原始需求文本]"
       },
-      "bodySha256": "d8e468ec77028d9f0459408a3ecbd239918987440ec955e24d3558bbd70d86aa",
-      "fileSha256": "69b53e925ca9ff26359c545c67ed7810b0ffa9b16c3746e132cc69e4e58b78ab",
+      "bodySha256": "171fe0d894f6dd486c1a7be7a7965ca9eb19ecc9a6e6b16bae6b6752d01c5abb",
+      "fileSha256": "43133fd28ef0bb53c818a56a2798d238b78a93b686b485b7509841d4683e642a",
       "name": "gis-task-plan",
       "agent": "task-plan",
       "context": "fork",
@@ -638,8 +638,8 @@
         "agent": "gis-tool",
         "context": "fork"
       },
-      "bodySha256": "06c6902246898241d6ecedc183bcf88a31d6a59d2e6d68c3b8ea95affcea5755",
-      "fileSha256": "93a4f575029e035e5b52b3726fae0ac280501c7d73e1a1896a52e2f7f15bffaf",
+      "bodySha256": "b3706e198714528b12ef3ed77b56e25950b0cead5f4d1b96d0dc7436821a1c7a",
+      "fileSha256": "a3b2ccde263fb8af48b9009749cba7e25689d22e33bd7dfcdd08b62c26212f79",
       "name": "result-confirm",
       "agent": "gis-tool",
       "context": "fork",
@@ -702,8 +702,8 @@
           "knowledge-db"
         ]
       },
-      "bodySha256": "379fea40a1ca11302c5fe906911e8f76b1a1c84ec74003bde4c43e2bff306118",
-      "fileSha256": "c47bc7548925cecc518f972db77108c0a086e79a271ddddd23bad8ac42a818a6",
+      "bodySha256": "78b84d9ddc49560d78323fc155e5cd84cd8b4dcac86e6f1168cfcad8be6c0e33",
+      "fileSha256": "a33dd899152e33c0be33c4f851ee93c8cc9d1af1bbc4bf5339d79c570dba51a4",
       "name": "tool-report",
       "agent": "report",
       "context": "inline",
@@ -725,8 +725,8 @@
         "agent": "gis-tool",
         "context": "fork"
       },
-      "bodySha256": "6794ccc0d0d77b764c1dd4d59970bdcd0ef2ca8b5874d7228386cb6b7e008c62",
-      "fileSha256": "fdbe8bc75db74c71aa7674983fdf8093c725935cddd6efea0cbeb935f5e88271",
+      "bodySha256": "f44bf0ff24b3c58647068c3f58debd5510904d458ecfc1a35a1b4105cde14117",
+      "fileSha256": "8a7229ec1392ca7da86c2618fd08e346fcf9e62dcffc5a36faa8263e1d8675f4",
       "name": "tool-retry",
       "agent": "gis-tool",
       "context": "fork",
@@ -766,8 +766,8 @@
         "agent": "task-plan",
         "context": "fork"
       },
-      "bodySha256": "36422da23df347976863c23815167cdd7af5fbfcb8e2aae6a0284dc73c563ee9",
-      "fileSha256": "7e393ed9ec2f70c759cdeb612d7eb687a493b139b1edb1f75fb37de046dedf66",
+      "bodySha256": "a4a5422d5e10429affa2b0c4fd9929f0459fd51bf3f7cfc5141140c0fdddabfa",
+      "fileSha256": "4ab31deb6e7759050345b6e13da98d685c4ef80af443fb5500762187bbe3d5dc",
       "name": "workflow-dsl",
       "agent": "task-plan",
       "context": "fork",

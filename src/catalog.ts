@@ -25,7 +25,9 @@ export function body(doc: Document): string {
   const text = readFileSync(join(resourceRoot, doc.path), 'utf8').replace(/^\uFEFF/, '');
   const match = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(text);
   const content = match ? text.slice(match[0].length) : text;
-  if (createHash('sha256').update(content).digest('hex') !== doc.bodySha256) throw new Error(`Prompt integrity mismatch: ${doc.path}. Rebuild the catalog deliberately after source changes.`);
+  // \u54C8\u5E0C\u524D\u5F52\u4E00\u5316\u884C\u5C3E\uFF1Agit \u68C0\u51FA\uFF08autocrlf/eol \u5C5E\u6027\uFF09\u4E0E zip \u89E3\u538B\u53EF\u80FD\u6539\u53D8\u6B63\u6587\u884C\u5C3E\uFF0C
+  // \u63D0\u793A\u8BCD\u8BED\u4E49\u4E0D\u53D7\u5F71\u54CD\uFF1BbodySha256 \u7EDF\u4E00\u6309 LF \u6B63\u6587\u8BB0\u5F55\u3002
+  if (createHash('sha256').update(content.replace(/\r\n/g, '\n')).digest('hex') !== doc.bodySha256) throw new Error(`Prompt integrity mismatch: ${doc.path}. Rebuild the catalog deliberately after source changes.`);
   return content;
 }
 export function agentName(name: string): string { return name.replace(/^@/, '').replace(/^linktool-plugin:/, '').replace(/^linktool:/, ''); }
