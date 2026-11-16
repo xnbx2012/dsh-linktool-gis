@@ -94,7 +94,11 @@ const ROWS: RowSpec[] = [
   { field: 'hookGuard.skillMdGuard', labelKey: 'skillMdGuard', hintKey: 'skillMdGuardHint', order: 100 },
 ];
 
-function apply(ctx: any): void {
+/** Required services (cordis fiber inject) — official client plugins declare these so
+ * activation waits for slots/locale/configForms to exist before apply runs. */
+export const inject = ['slots', 'locale', 'configForms'];
+
+export function apply(ctx: any): void {
   const t: Translate = ctx.locale.bind(NS);
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'linktool-gis: dictionaries');
   const form = ctx.configForms.get(NAMESPACE);
@@ -165,5 +169,3 @@ function apply(ctx: any): void {
     locale: NS,
   }, LinkToolGisSection))), 'linktool-gis: settings section');
 }
-
-export { apply };

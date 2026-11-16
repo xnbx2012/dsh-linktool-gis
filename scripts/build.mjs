@@ -20,6 +20,6 @@ const requireLines = imports.map(line => {
   return specs.join('\n');
 });
 const banner = `window.__ModuleLoader__.load({\n\tid: "@linktool/dsh-plugin",\n\tfactory: (require) => {\n\t\tvar module = { exports: {} };\n\t\tvar exports = module.exports;\n\t\tObject.defineProperty(exports, Symbol.toStringTag, { value: "Module" });\n`;
-const footer = `\n\t\texports.apply;\n\t\treturn module.exports;\n\t}\n});\n//# sourceMappingURL=client.js.map`;
+const footer = `\n\t\treturn { apply: module.exports.apply, inject: module.exports.inject };\n\t}\n});\n//# sourceMappingURL=client.js.map`;
 writeFileSync('lib/client.js', banner + (requireLines.length ? requireLines.join('\n') + '\n' : '') + rest + footer);
 console.log('Built lib/index.js and lib/client.js for dsh 0.2.1-rc.5');
