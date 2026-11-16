@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2023", "module": "NodeNext", "moduleResolution": "NodeNext",
-    "strict": true, "skipLibCheck": true, "noEmit": true, "types": ["node"]
+    "strict": true, "skipLibCheck": true, "noEmit": true, "types": ["node"],
+    "jsx": "react-jsx", "lib": ["ES2023", "DOM"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "client/**/*.tsx"]
 }

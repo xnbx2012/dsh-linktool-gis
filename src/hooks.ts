@@ -8,6 +8,7 @@ import type {} from '@deepseek-ai/dsh-compaction';
 import { mapArguments, mcpTarget } from './tools.js';
 import { expandPaths, childEnvironment } from './paths.js';
 import { benchmarkPolicy, packageRoot, resourceRoot, readJson, workspace, type RuntimeConfig, type SkillRecord } from './catalog.js';
+import { guardPreToolUse, hookSwitchOf, switchesOf, type HookSwitches } from './guard.js';
 
 declare module '@deepseek-ai/dsh-llm' { interface MessageSourceMap { 'linktool-hook': { kind: 'linktool-hook'; form: 'instructions' } } }
 interface Hook { type: string; command: string; timeout?: number; async?: boolean }
@@ -46,12 +47,14 @@ export async function runCommand(command: string, payload: unknown, cwd: string,
 }
 export class HookBridge {
   readonly bindings: Record<string, Binding[]>;
-  constructor(private readonly ctx: Context, private readonly config: RuntimeConfig, private readonly identity: (agent: Agent | undefined) => string, private readonly currentSkill: (agent: Agent | undefined) => SkillRecord | undefined = () => undefined) { this.bindings = readJson<{ hooks: Record<string, Binding[]> }>(join(packageRoot, 'config/hooks.json')).hooks; }
+  /** Live settings-page switches; defaults come from runtime.json until volatile config writes arrive. */
+  readonly switches: HookSwitches;
+  constructor(private readonly ctx: Context, private readonly config: RuntimeConfig, private readonly identity: (agent: Agent | undefined) => string, private readonly currentSkill: (agent: Agent | undefined) => SkillRecord | undefined = () => undefined, live?: { switches: HookSwitches }) { this.bindings = readJson<{ hooks: Record<string, Binding[]> }>(join(packageRoot, 'config/hooks.json')).hooks; this.switches = live?.switches ?? switchesOf(config.hookGuard); }
   async run(event: string, exec?: ToolExecution, result?: Readonly<ToolExecutionResult>, agent?: Agent, signal: AbortSignal = new AbortController().signal): Promise<HookResult> {
     const owner = agent ?? exec?.agent;
     // The matched code baseline is authorized to execute ArcPy code. It must
     // not inherit LinkTool's atomic-tool-only anti-bypass treatment.
-    const benchmarkRoutes = (globalThis as Record<symbol, unknown>)[Symbol.for('linktool.benchmark.architectures')] as Map<string, string> | undefined;
+    const benchmarkRoutes = (globalThis as Record<symbol, unknown>)[Symbol.for('linktool.benchmark.architectures')] as Map<string, string | undefined> | undefined;
     if (owner && benchmarkRoutes?.get(owner.session.id) === 'code') return { contexts: [] };
     const name = exec ? legacyTool(exec.name) : 'auto';
     const payload = { session_id: owner?.session.id ?? '', transcript_path: '', cwd: workspace(owner), hook_event_name: event, agent_name: this.identity(owner), agent: this.identity(owner), tool_name: name, tool_use_id: exec?.callId ?? '', tool_input: exec ? mapArguments(mcpTarget(exec.name, this.config), exec.arguments, owner, this.currentSkill(owner)) : {}, ...(result ? { tool_response: { content: result.content, isError: result.isError, ...('value' in result ? { structuredContent: result.value } : {}), ...('error' in result ? { error: result.error } : {}) } } : {}) };
@@ -64,6 +67,10 @@ export class HookBridge {
       if (binding.matcher && binding.matcher !== '*' && !new RegExp(`^(?:${binding.matcher})$`).test(name)) continue;
       for (const [hookIndex, hook] of binding.hooks.entries()) {
         const hookId=event+':'+bindingIndex+':'+hookIndex;
+        // Settings-page switch: each bundled hook can be turned off without
+        // reinstalling; unknown hooks keep the shipped always-on behavior.
+        const hookSwitch = hookSwitchOf(hook.command);
+        if (hookSwitch && !this.switches.get(hookSwitch)) continue;
         if (benchmarkPolicy(owner).hooks?.includes(hookId)) continue;
         const observer=(globalThis as Record<symbol,unknown>)[Symbol.for('linktool.benchmark.observe')] as ((sid:string,type:string,data:unknown)=>void)|undefined;
         const hookStart=performance.now();
@@ -92,6 +99,14 @@ export class HookBridge {
     return merged;
   }
   install(): void {
+    // Adapter-level guard: hard danger floor plus switchable GIS-command
+    // interception, evaluated before any bundled hook spawns a Python process.
+    this.ctx.on('tools/pre-execute', async (exec, next) => {
+      if (!this.identity(exec.agent)) return next();
+      const blocked = await guardPreToolUse(exec, this.switches, name => mapArguments(mcpTarget(name, this.config), exec.arguments, exec.agent, this.currentSkill(exec.agent)));
+      if (blocked) return { kind: 'deny', reason: blocked };
+      return next();
+    });
     this.ctx.on('tools/pre-execute', async (exec, next) => {
       if (!this.identity(exec.agent)) return next();
       const result = await this.run('PreToolUse', exec, undefined, undefined, exec.signal);

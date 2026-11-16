@@ -17,6 +17,31 @@ export interface RuntimeConfig {
   modelAliases: Record<string, { mode: 'inherit' } | { mode: 'route'; provider: string; model: string; reasoningEffort?: string }>;
   serverAliases: Record<string, string>; toolAliases: Record<string, string>;
   agentSkillRules: Record<string, string[]>; maxAgentDepth: number; hookTimeoutMs: number;
+  /** Settings-page switchable hooks; every runtime.json absent field means the shipped default. */
+  hookGuard?: HookGuardConfig;
+}
+/** Per-hook switches exposed on the LinkTool-GIS settings tab. */
+export interface HookGuardConfig {
+  /** Strict 01_DataBackup/02_WorkSpace/03_Result path limitation (bundled Python hooks). Default off — dsh owns path policy. */
+  pathRestrict?: boolean;
+  /** Route GIS command-line/code attempts to the GIS MCP server. Default on. */
+  mcpRestrict?: boolean;
+  /** Record every execute_gis_tool call into 02_WorkSpace/gis-tool-logs.json. Default on. */
+  gisToolLog?: boolean;
+  /** Pre-validate execute_gis_tool parameters against the ArcPy tool schema. Default on. */
+  paramValidate?: boolean;
+  /** Auto-backup read-only data before destructive GIS tools. Default on. */
+  dataBackup?: boolean;
+  /** Post-run attribute/geometry validation of GIS outputs. Default on. */
+  resultValidate?: boolean;
+  /** Detect repeated failure patterns and advise the agent to stop retrying. Default on. */
+  failurePattern?: boolean;
+  /** Re-inject compressed GIS history after context compaction. Default on. */
+  contextCompress?: boolean;
+  /** Deny arcpy produced through Write/Edit/wrapper-script bypass paths. Default on. */
+  antiBypass?: boolean;
+  /** Forbid reading SKILL.md directly through Read; load via Skill instead. Default on. */
+  skillMdGuard?: boolean;
 }
 export const catalog: { name: string; version: string; agents: AgentRecord[]; skills: SkillRecord[]; workflows: string[] } = JSON.parse(readFileSync(join(packageRoot, 'config', 'catalog.json'), 'utf8'));
 export const readJson = <T>(path: string): T => JSON.parse(readFileSync(path, 'utf8'));

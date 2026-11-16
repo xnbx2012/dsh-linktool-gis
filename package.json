@@ -1,12 +1,13 @@
 {
   "name": "@linktool/dsh-plugin",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "type": "module",
   "description": "LinkTool GIS plugin for DeepSeek Harness",
   "license": "MIT",
   "main": "./lib/index.js",
   "exports": {
-    ".": "./lib/index.js"
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js"
   },
   "files": [
     "lib",
@@ -17,6 +18,7 @@
     "MIGRATION.md",
     "scripts",
     "src",
+    "client",
     "tsconfig.json",
     "package-lock.json",
     "resources-full.tar.gz",
@@ -38,6 +40,15 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-api-remotes"
+      ],
+      "platform": "web"
     }
   },
   "peerDependencies": {
@@ -52,7 +63,8 @@
     "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
     "@deepseek-ai/dsh-mcp-client": "0.2.1-rc.5",
     "@deepseek-ai/dsh-workflow": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-user-questions": "0.2.1-rc.5"
+    "@deepseek-ai/dsh-user-questions": "0.2.1-rc.5",
+    "@deepseek-ai/schemastery": "~3.18.5"
   },
   "dependencies": {
     "typescript": "^5.9.3"
@@ -60,6 +72,8 @@
   "devDependencies": {
     "@deepseek-ai/dsh": "0.2.1-rc.5",
     "@types/node": "^24.0.0",
+    "@types/react": "^18.2.0",
+    "react": "^18.2.0",
     "esbuild": "^0.25.0",
     "yaml": "^2.8.0",
     "@modelcontextprotocol/client": "2.0.0"

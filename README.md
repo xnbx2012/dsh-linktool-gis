@@ -4,7 +4,26 @@
 
 目标版本：**DeepSeek Harness 0.2.1-rc.5**。不要直接在 0.1.x 或 0.2.0-rc.2 上加载；这些版本的 Agent、Skill、Workflow 接口不同。
 
-## 0. 凭据说明（公开仓库）
+## 0. 设置页（LinkTool-GIS 标签页）
+
+Harness Web 界面的 **设置 → LinkTool-GIS** 提供各 Hook 的单独开关，写入插件的 `hookGuard` 配置（volatile 字段，改动立即生效，无需重启）：
+
+| 开关 | 默认 | 作用 |
+|---|---|---|
+| 输出路径严格限制 | **关闭** | 开启后文件工具、Bash 与 GIS 输出仅允许 `01_DataBackup`（只读）/`02_WorkSpace`/`03_Result`。默认关闭：路径策略交由 Harness 自己的沙箱/权限体系控制，本插件不再另行限制。 |
+| MCP 执行限制 | **开启** | 拦截 GIS 类命令行/代码（arcpy、shapefile、.gdb 等）并引导改用 GIS MCP 执行。只匹配真正引用 GIS 执行的命令，普通命令行、代码、网络、构建操作零误拦。 |
+| GIS 工具日志记录 | 开启 | 每次 `execute_gis_tool` 调用写入 `02_WorkSpace/gis-tool-logs.json`，供报告与复现。 |
+| 参数校验 | 开启 | 执行前对照 ArcPy 工具 schema 检查必填参数与输入路径。 |
+| 数据备份 | 开启 | 破坏性 GIS 工具操作 `01_DataBackup` 数据前自动备份并重定向。 |
+| 结果验证 | 开启 | GIS 输出属性空值率、要素数与几何一致性的自动检查。 |
+| 失败模式检测 | 开启 | 同一工具连续失败时提示停止重试并报告根因。 |
+| 上下文压缩摘要 | 开启 | 上下文压缩后重新注入 GIS 操作历史摘要。 |
+| 绕过防护 | 开启 | 禁止经 `.bat`/`.sh` 包装脚本绕过 GIS MCP（arcpy 内容拦截跟随「MCP 执行限制」开关）。 |
+| SKILL.md 保护 | 开启 | 禁止 Read 直读技能定义文件，改用 Skill 工具加载。 |
+
+除前两项外均为原插件 hooks 的原始行为开关；关闭某项即跳过对应 hook 的执行。**危险命令底线**（磁盘格式化、注册表写入、远程脚本管道等）不受任何开关影响，始终拦截。
+
+## 0.1 凭据说明（公开仓库）
 
 本仓库**不包含任何 API key 或密码**。`config/mcp.json` 与 `resources/plugin/.claude-plugin/plugin.json` 中的凭据均为 `${ENV_VAR}` 占位符，安装后通过环境变量注入（见第 1 节「配置接收方自己的环境」）。未设置对应环境变量时占位符展开为空值，相关 MCP 服务将无法认证。
 
@@ -115,12 +134,12 @@ $env:LINKTOOL_MEMORY_AUTHORIZATION = '或直接提供 Authorization 请求头值
 
 ```text
 你的项目/
-├── 01_DataBackup/    输入与备份，hooks 限制为只读
+├── 01_DataBackup/    输入与备份
 ├── 02_WorkSpace/     中间数据、计划、Workflow、日志
 └── 03_Result/        最终结果
 ```
 
-源 hooks 会限制上述目录以外的操作，这是启用后的原始规则。技能参考资料通过插件资源路径读取，Skill 正文用 Skill 工具加载。
+设置页的「输出路径严格限制」默认关闭，允许读写任意路径，路径遵从 dsh 的控制；开启后，上述目录以外的操作被拦截，且 `01_DataBackup` 仅允许读取（这是启用后的原始规则）。技能参考资料通过插件资源路径读取，Skill 正文用 Skill 工具加载。
 
 ## 2. 发给别人怎么发
 
@@ -180,13 +199,14 @@ Remove-Item Env:LINKTOOL_VERIFY_MCP, Env:LINKTOOL_VERIFY_GIS
 
 ```text
 dsh/
-├── lib/                    Harness 可加载的 ESM 入口及适配模块
+├── lib/                    Harness 可加载的 ESM 入口及适配模块（lib/client.js 为设置页浏览器 bundle）
 ├── src/                    TypeScript 适配源码
+├── client/                 设置页浏览器端源码（settings-page.tsx）
 ├── config/
 │   ├── catalog.json        完整 agent/skill 元数据、关联、上下文与正文哈希
 │   ├── mcp.json            MCP 执行配置；使用插件解析的 DSH 路径变量
 │   ├── hooks.json          已启用的原 hook 绑定及启动适配
-│   ├── runtime.json        模型路由、别名、启用开关与技能关联
+│   ├── runtime.json        模型路由、别名、启用开关、hookGuard 默认值与技能关联
 │   └── source-manifest.json  全部源文件完整性清单
 ├── resources/plugin/       原插件全部文件（不含 .venv，克隆后运行 scripts/archive-resources.mjs 重建归档）
 ├── resources-full.tar.gz   原插件完整归档；不入库，由 archive-resources.mjs 生成

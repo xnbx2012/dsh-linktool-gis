@@ -11,6 +11,18 @@
     "pdf-reader-mcp",
     "MiniMax"
   ],
+  "hookGuard": {
+    "pathRestrict": false,
+    "mcpRestrict": true,
+    "gisToolLog": true,
+    "paramValidate": true,
+    "dataBackup": true,
+    "resultValidate": true,
+    "failurePattern": true,
+    "contextCompress": true,
+    "antiBypass": true,
+    "skillMdGuard": true
+  },
   "modelAliases": {
     "haiku": {
       "mode": "inherit"
