@@ -4,8 +4,8 @@
   "files": [
     {
       "path": ".claude-plugin/plugin.json",
-      "bytes": 2099,
-      "sha256": "b530edb859faf6c977eba42b79f26783d69d46843a98dbfa344b4cda36f9dac7"
+      "bytes": 2126,
+      "sha256": "4d15c427d8f0c713285e148c1d401f70da5027c89b9ac0169191bc49c015370a"
     },
     {
       "path": "agents/CLAUDE.md",
@@ -79,8 +79,8 @@
     },
     {
       "path": "scripts/arcgis-mcp-server/detect_engines.py",
-      "bytes": 4783,
-      "sha256": "a021a5d36095707ca6954581ef2cf3ec9c48a562b8061d1a6bcef1eb81833b3c"
+      "bytes": 7356,
+      "sha256": "124776b89e8d554fba5de9e85610a36e52a373a0de72a368dfbdda906b0ddd24"
     },
     {
       "path": "scripts/arcgis-mcp-server/generate_schema.py",
@@ -154,8 +154,8 @@
     },
     {
       "path": "scripts/CLAUDE.md",
-      "bytes": 6850,
-      "sha256": "fe64241ffc7cdda86f15650a77dc2ad082815311a0125bf2a493c971a8158b30"
+      "bytes": 7381,
+      "sha256": "de4121ff6130f093672ee502eb0cfd0605662abf3f7632aadd5ae3fa8098ff4a"
     },
     {
       "path": "scripts/color-style-mcp/arcpy_scripts.py",
@@ -613,6 +613,11 @@
       "sha256": "b042d84b90fb32878b31c440d1362d142783be9c11e434f9c0bdd9b70f32495f"
     },
     {
+      "path": "scripts/color-style-mcp/catagraphy_project/ImportLog/e964ad4271b4490c893ae59f433a466a_Import.xml",
+      "bytes": 49,
+      "sha256": "b042d84b90fb32878b31c440d1362d142783be9c11e434f9c0bdd9b70f32495f"
+    },
+    {
       "path": "scripts/color-style-mcp/catagraphy_project/ImportLog/ebfd92d7531f4bb88f1d53cb4e41c47a_Import.xml",
       "bytes": 49,
       "sha256": "b042d84b90fb32878b31c440d1362d142783be9c11e434f9c0bdd9b70f32495f"
@@ -949,13 +954,13 @@
     },
     {
       "path": "scripts/color-style-mcp/CLAUDE.md",
-      "bytes": 6505,
-      "sha256": "22915472c98f25344f8025f282e890691428108b460e7a77234fda34b34f3146"
+      "bytes": 10251,
+      "sha256": "652b926a191fca8c0e38358f44897eb39ec2aa9047110bbbda02c30b275f2da6"
     },
     {
       "path": "scripts/color-style-mcp/color_style_server.py",
-      "bytes": 9675,
-      "sha256": "5b16c6313702b2b3067566012785935ebbf7e68de82cf1f8b232566dfd9f3038"
+      "bytes": 15332,
+      "sha256": "f9c1b34808311b796a28be815c3a5e08c967b30c2e1016ab3f5b5b00d1b531f2"
     },
     {
       "path": "scripts/color-style-mcp/example.json",
@@ -974,8 +979,8 @@
     },
     {
       "path": "scripts/color-style-mcp/new_draw_map.py",
-      "bytes": 39235,
-      "sha256": "761f01aec79af85de7db585a5a716bf02df358b2e91e22a3fb60dc3bd4997261"
+      "bytes": 39458,
+      "sha256": "c05324b7f8df9b3d3d8e32ca5cc3ada3f018e40804b8d90eed1856a4e971b987"
     },
     {
       "path": "scripts/color-style-mcp/new_draw_map_bak.py",
@@ -984,8 +989,13 @@
     },
     {
       "path": "scripts/color-style-mcp/pyproject.toml",
-      "bytes": 406,
-      "sha256": "12967a353481b439cc7de08b97cca5bf5ee76ddd3f65a5cfa17c235f36a4ed1b"
+      "bytes": 408,
+      "sha256": "998346ab8648021227e8dcd78b46dd1bc64b7513eb44526e3fca996a60a87156"
+    },
+    {
+      "path": "scripts/color-style-mcp/qgis_draw_map.py",
+      "bytes": 41043,
+      "sha256": "1065ef4a0205a95487f4ed7fe08a660ead2d6f6daad1546390dd85b389041ce3"
     },
     {
       "path": "scripts/color-style-mcp/README.md",
@@ -1029,8 +1039,23 @@
     },
     {
       "path": "scripts/color-style-mcp/uv.lock",
-      "bytes": 257297,
-      "sha256": "90c8f1bd95cd54f97984b72a83175b6c9b7469e7d4a35089d26151c699e13fb7"
+      "bytes": 257299,
+      "sha256": "08d7ac43fdb4659f51f14a6d53c2a677ef88c0330966b824881c86b1f4d066ad"
+    },
+    {
+      "path": "scripts/color-style-mcp/__pycache__/color_style_server.cpython-312.pyc",
+      "bytes": 16912,
+      "sha256": "c2957fbd426295e69b153053ad37d20d57ed9663442bce70f2453b29c4321a80"
+    },
+    {
+      "path": "scripts/color-style-mcp/__pycache__/color_style_server.cpython-314.pyc",
+      "bytes": 19693,
+      "sha256": "ad60ec3a201b01ac9d4db3f87f934a50fce3e2fb5584a82d5c8207480ab0e849"
+    },
+    {
+      "path": "scripts/color-style-mcp/__pycache__/qgis_draw_map.cpython-314.pyc",
+      "bytes": 53635,
+      "sha256": "994a3057d953c417558be12e0228847c76710253a353ef86ef802954c31241f0"
     },
     {
       "path": "scripts/context-compress/CLAUDE.md",
@@ -1214,8 +1239,8 @@
     },
     {
       "path": "scripts/shared/qgis_engine.py",
-      "bytes": 30673,
-      "sha256": "c7b224f93d6494706c6b5930af14c9462fed8bd0ff8d373df162f5ebea3f7723"
+      "bytes": 33314,
+      "sha256": "c39b77127e99a15558cb50a8dff8956f109b837d09f8e66342c361a4efd0b9c8"
     },
     {
       "path": "scripts/shared/__init__.py",
@@ -1249,13 +1274,13 @@
     },
     {
       "path": "scripts/shared/__pycache__/qgis_engine.cpython-312.pyc",
-      "bytes": 35695,
-      "sha256": "088dc9ef2c9b67791d7581838040b9fba778770585663168817b34dcb79d0a6c"
+      "bytes": 38687,
+      "sha256": "318adbea903a3758fce74def67f308b70ffc82d609a4696de1db56a02228748c"
     },
     {
       "path": "scripts/shared/__pycache__/qgis_engine.cpython-314.pyc",
-      "bytes": 36730,
-      "sha256": "b6d9a145756f602240c64f3dd773f99320795c81f5c228460716c8da996b0aae"
+      "bytes": 45132,
+      "sha256": "4e38e2aa696c45a6ba85f128fdbe0e95a8dede93830e8dd9385aaffde03ea678"
     },
     {
       "path": "skills/.hold",
@@ -1593,5 +1618,5 @@
       "sha256": "fdd5e729a25c298de5d3b9ee5dffe723b513c8645ab37789b715fc6ab62f3f1b"
     }
   ],
-  "totalBytes": 65415491
+  "totalBytes": 65573619
 }

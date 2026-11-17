@@ -49,7 +49,7 @@ export function writeEngineSwitches(overrides: Record<string, unknown>): void {
   atomicJson(engineSwitchesFile(), payload);
 }
 
-export interface EngineProbe { available: boolean; detail?: string }
+export interface EngineProbe { available: boolean; detail?: string; version?: string }
 export interface EngineStatus { engines: Record<string, EngineProbe>; checkedAt?: string }
 
 /** Parse the current detection snapshot from the live volatile config ref. */
@@ -88,20 +88,45 @@ export function createEngineManager(ctx: Context, overrides: Record<string, unkn
   let queued = false;
   const scriptDir = join(resourceRoot, 'scripts', 'arcgis-mcp-server');
 
+  /**
+   * Persist a probe snapshot through the host settings service.
+   *
+   * The write races with the loader's startup reconcile window: on freshly
+   * mounted profiles (and notably on dsh ≥0.2.2 / cordis 4.1) an early write
+   * fails with "cannot get required service in inactive context" — and a
+   * failure in that window can leave the config service unavailable for the
+   * rest of the process, so the page would stay 探测中 forever. Probe results
+   * are therefore never dropped: resolve + write are retried with backoff
+   * until the host settles, and only then reported as a warning.
+   */
   async function writeStatus(status: EngineStatus, patch: Record<string, unknown> = {}): Promise<void> {
-    let settings: SettingsFace | undefined;
-    try {
-      settings = ctx.get('settings') as SettingsFace | undefined;
-    } catch {
-      settings = undefined;
+    const payload = { engineStatus: JSON.stringify(status), ...patch };
+    const attempts = 12;
+    const retryDelayMs = 5_000;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      let settings: SettingsFace | undefined;
+      try {
+        settings = ctx.get('settings') as SettingsFace | undefined;
+      } catch {
+        settings = undefined;
+      }
+      if (!settings?.update) {
+        lastError = new Error('settings service unavailable');
+      } else {
+        try {
+          // Volatile-only patch: the loader commits into running refs and
+          // forwards settings/document-updated, so open settings pages
+          // refresh their badges.
+          await settings.update('linktool-plugin', payload, undefined);
+          return;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, retryDelayMs));
     }
-    if (!settings?.update) {
-      ctx.logger?.warn?.('[linktool] settings service unavailable; engine probe result not recorded');
-      return;
-    }
-    // Volatile-only patch: the loader commits into running refs and forwards
-    // settings/document-updated, so open settings pages refresh their badges.
-    await settings.update('linktool-plugin', { engineStatus: JSON.stringify(status), ...patch }, undefined);
+    ctx.logger?.warn?.(`[linktool] engine probe result could not be recorded after ${attempts} attempts: ${(lastError as Error)?.message ?? lastError}`);
   }
 
   function spawnDetect(): Promise<EngineStatus> {
@@ -136,13 +161,19 @@ export function createEngineManager(ctx: Context, overrides: Record<string, unkn
       proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
       proc.on('error', error => finish(error));
       proc.on('exit', code => {
-        const start = stdout.indexOf('{');
-        if (start >= 0) {
-          try {
-            const parsed = JSON.parse(stdout.slice(start)) as EngineStatus;
-            if (parsed && typeof parsed.engines === 'object' && parsed.engines) return finish(undefined, parsed);
-          } catch {
-            // Fall through to the exit-code error below.
+        // detect_engines.py prints one JSON line, but uv/Python banners may
+        // precede it and warnings may trail it. Try each '{' as a document
+        // start (full tail first, then up to the last '}') before giving up.
+        const lastBrace = stdout.lastIndexOf('}');
+        for (let start = stdout.indexOf('{'); start >= 0; start = stdout.indexOf('{', start + 1)) {
+          for (const end of [stdout.length, lastBrace + 1]) {
+            if (end <= start) continue;
+            try {
+              const parsed = JSON.parse(stdout.slice(start, end)) as EngineStatus;
+              if (parsed && typeof parsed.engines === 'object' && parsed.engines) return finish(undefined, parsed);
+            } catch {
+              // Malformed candidate; try the next one.
+            }
           }
         }
         finish(new Error(`detect_engines.py exited with ${code}: ${(stderr || stdout).slice(-400)}`));

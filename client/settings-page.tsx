@@ -152,7 +152,7 @@ const ENGINE_ROWS: EngineRowSpec[] = [
   { field: 'engineInner', engineKey: 'inner', labelKey: 'engineInner', hintKey: 'engineInnerHint', order: 50 },
 ];
 
-interface StatusSnapshot { engines?: Record<string, { available?: boolean; detail?: string }>; checked_at?: string }
+interface StatusSnapshot { engines?: Record<string, { available?: boolean; detail?: string; version?: string }>; checked_at?: string }
 
 /** Required services (cordis fiber inject) — official client plugins declare these so
  * activation waits for slots/locale/configForms to exist before apply runs. */
@@ -162,7 +162,7 @@ export function apply(ctx: any): void {
   const t: Translate = ctx.locale.bind(NS);
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'linktool-gis: dictionaries');
   const form = ctx.configForms.get(NAMESPACE);
-  const css = '.LTGIS_section{max-width:760px;color:var(--dsw-alias-label-primary);flex-direction:column;gap:16px;display:flex}.LTGIS_intro{color:var(--dsw-alias-label-secondary);margin:0;font-size:13px;line-height:20px}.LTGIS_unavailable{color:var(--dsw-alias-label-tertiary);margin:0;font-size:13px}.LTGIS_rows{flex-direction:column;display:flex}.LTGIS_row{border-bottom:.5px solid var(--dsw-alias-border-l2);justify-content:space-between;align-items:center;gap:24px;padding:16px 0;display:flex}.LTGIS_main{min-width:0;flex:1}.LTGIS_title{font-size:14px;line-height:20px}.LTGIS_hint{color:var(--dsw-alias-label-secondary);margin-top:4px;font-size:12px;line-height:18px}.LTGIS_failed{color:var(--dsw-alias-state-error-primary);margin-top:4px;font-size:12px}.LTGIS_group{margin-top:8px;font-size:13px;font-weight:600;color:var(--dsw-alias-label-secondary)}.LTGIS_status{font-size:12px;line-height:18px;margin-top:4px;display:inline-flex;align-items:center;gap:6px}.LTGIS_dot{width:8px;height:8px;border-radius:50%;flex:none}.LTGIS_ok{color:var(--dsw-alias-state-success-primary,#0a7d33)}.LTGIS_ok .LTGIS_dot{background:var(--dsw-alias-state-success-primary,#0a7d33)}.LTGIS_bad{color:var(--dsw-alias-state-error-primary)}.LTGIS_bad .LTGIS_dot{background:var(--dsw-alias-state-error-primary)}.LTGIS_unknown{color:var(--dsw-alias-label-tertiary)}.LTGIS_unknown .LTGIS_dot{background:var(--dsw-alias-label-tertiary)}.LTGIS_busy{color:var(--dsw-alias-label-secondary)}.LTGIS_busy .LTGIS_dot{background:var(--dsw-alias-label-secondary)}.LTGIS_refreshRow{justify-content:space-between;align-items:center;gap:24px;padding:12px 0 0;display:flex}.LTGIS_refreshBtn{border:.5px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-primary);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer}.LTGIS_refreshBtn:disabled{opacity:.5;cursor:default}';
+  const css = '.LTGIS_section{max-width:760px;color:var(--dsw-alias-label-primary);flex-direction:column;gap:16px;display:flex}.LTGIS_intro{color:var(--dsw-alias-label-secondary);margin:0;font-size:13px;line-height:20px}.LTGIS_unavailable{color:var(--dsw-alias-label-tertiary);margin:0;font-size:13px}.LTGIS_rows{flex-direction:column;display:flex}.LTGIS_row{border-bottom:.5px solid var(--dsw-alias-border-l2);justify-content:space-between;align-items:center;gap:24px;padding:16px 0;display:flex}.LTGIS_main{min-width:0;flex:1}.LTGIS_title{font-size:14px;line-height:20px}.LTGIS_hint{color:var(--dsw-alias-label-secondary);margin-top:4px;font-size:12px;line-height:18px}.LTGIS_failed{color:var(--dsw-alias-state-error-primary);margin-top:4px;font-size:12px}.LTGIS_group{margin-top:8px;font-size:13px;font-weight:600;color:var(--dsw-alias-label-secondary)}.LTGIS_status{font-size:12px;line-height:18px;margin-top:4px;display:inline-flex;align-items:center;gap:6px}.LTGIS_dot{width:8px;height:8px;border-radius:50%;flex:none}.LTGIS_ok{color:var(--dsw-alias-state-success-primary,#0a7d33)}.LTGIS_ok .LTGIS_dot{background:var(--dsw-alias-state-success-primary,#0a7d33)}.LTGIS_bad{color:var(--dsw-alias-state-error-primary)}.LTGIS_bad .LTGIS_dot{background:var(--dsw-alias-state-error-primary)}.LTGIS_unknown{color:var(--dsw-alias-label-tertiary)}.LTGIS_unknown .LTGIS_dot{background:var(--dsw-alias-label-tertiary)}.LTGIS_busy{color:var(--dsw-alias-label-secondary)}.LTGIS_busy .LTGIS_dot{background:var(--dsw-alias-label-secondary)}.LTGIS_refreshRow{justify-content:space-between;align-items:center;gap:24px;padding:12px 0 0;display:flex}.LTGIS_refreshBtn{border:.5px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-primary);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer}.LTGIS_refreshBtn:disabled{opacity:.5;cursor:default}.LTGIS_ver{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}';
   ctx.effect(() => {
     if (typeof document === 'undefined') return;
     const tagId = '@linktool/dsh-plugin/settings.module.css';
@@ -254,6 +254,10 @@ export function apply(ctx: any): void {
         jsx.jsxs('div', { className: `LTGIS_status ${cls}`, children: [
           jsx.jsx('span', { className: 'LTGIS_dot', 'aria-hidden': 'true' }),
           detail ? jsx.jsx('span', { title: detail, children: label }) : jsx.jsx('span', { children: label }),
+          // 探测到的引擎版本号：可用状态后的小字灰色标注（不可用/未探测不展示）。
+          probe!.available && !unknown && probe!.version
+            ? jsx.jsx('span', { className: 'LTGIS_ver', title: detail, children: probe!.version })
+            : null,
         ] }),
         failed[0] ? jsx.jsx('div', { className: 'LTGIS_failed', role: 'alert', children: t('switchFailed') }) : null,
       ] }),
@@ -268,11 +272,13 @@ export function apply(ctx: any): void {
     const seen = react.useRef<string | undefined>(undefined);
     const snapshot = useSectionForm((s: Snapshot) => s) as Snapshot;
     const current = status?.checked_at;
-    // Clear the probing state when a probe lands (checked_at changes) or after
-    // a generous failsafe — first probes can download the Whitebox binary.
+    // Clear the probing state when a probe lands (checked_at changes from the
+    // value seen at click time — also covers the very first probe, where
+    // checked_at was previously undefined) or after a generous failsafe —
+    // first probes can download the Whitebox binary.
     (0, react.useEffect)(() => {
       if (!refreshing) return;
-      if (current !== undefined && seen.current !== undefined && current !== seen.current) {
+      if (current !== undefined && current !== seen.current) {
         setRefreshing(false);
         return;
       }

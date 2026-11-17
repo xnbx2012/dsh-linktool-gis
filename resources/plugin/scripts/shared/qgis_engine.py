@@ -28,6 +28,7 @@ import glob
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -89,6 +90,70 @@ def _find_qgis_prefix(root: Path) -> Path:
 def qgis_available() -> bool:
     """QGIS 是否可用（Windows 安装目录 / 已初始化的进程内运行时 / POSIX PATH 上的 qgis_process）。"""
     return _QGIS_APP is not None or _find_qgis_bat() is not None or _find_qgis_cli() is not None
+
+
+def qgis_version() -> str | None:
+    """QGIS 版本号（如 "3.44.12"）；未知返回 None。
+
+    进程内运行时已初始化时直接读 Qgis.QGIS_VERSION；否则对
+    qgis_process*.bat / PATH 上的 qgis_process 跑一次 `--version` 解析。
+    只做展示用，失败不影响可用性判定。
+    """
+    if _QGIS_APP is not None:
+        try:
+            from qgis.core import Qgis  # type: ignore
+
+            version = str(getattr(Qgis, "QGIS_VERSION", "") or "").strip()
+            if version:
+                match = re.search(r"(\d+\.\d+(?:\.\d+)?(?:\.\d+)?)", version)
+                return match.group(1) if match else version
+        except Exception:  # noqa: BLE001 —— 展示用途，失败降级到 CLI 探测
+            pass
+    launcher = _find_qgis_bat() or _find_qgis_cli()
+    if not launcher:
+        return None
+    try:
+        proc = subprocess.run(
+            [launcher, "--version"], capture_output=True, text=True,
+            timeout=60, env=_qgis_cli_env(),
+        )
+        output = f"{proc.stdout}\n{proc.stderr}"
+        match = re.search(r"QGIS[^\d]*(\d+\.\d+(?:\.\d+)?(?:\.\d+)?)", output)
+        return match.group(1) if match else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+_QGIS_PY_LAUNCHER: str | None = None
+_QGIS_PY_LAUNCHER_PROBED = False
+
+
+def qgis_python_launcher() -> str | None:
+    """QGIS 自带 Python 的启动器，用于**子进程**运行 PyQGIS 脚本（如 color-style 制图）。
+
+    Windows 返回安装 bin 目录下的 python-qgis*.bat（o4w_env + QGIS_PREFIX_PATH +
+    PYTHONPATH 全部就绪，PyQt ABI 与宿主无关）；POSIX 返回 PATH 上的 python3
+    （Debian 系 python3-qgis 装好后可直接 import qgis）。不可用返回 None。
+    进程级只探测一次。
+    """
+    global _QGIS_PY_LAUNCHER, _QGIS_PY_LAUNCHER_PROBED
+    if _QGIS_PY_LAUNCHER_PROBED:
+        return _QGIS_PY_LAUNCHER
+    _QGIS_PY_LAUNCHER_PROBED = True
+    if os.name != "nt":
+        _QGIS_PY_LAUNCHER = shutil.which("python3")
+        return _QGIS_PY_LAUNCHER
+    bat = _find_qgis_bat()
+    candidates: list[str] = []
+    if bat:
+        bin_dir = Path(bat).parent
+        candidates = sorted(glob.glob(str(bin_dir / "python-qgis*.bat")))
+    if not candidates:
+        candidates = sorted(glob.glob(r"C:\Program Files\QGIS *\bin\python-qgis*.bat"))
+    if not candidates:
+        candidates = sorted(glob.glob(r"C:\Program Files (x86)\QGIS *\bin\python-qgis*.bat"))
+    _QGIS_PY_LAUNCHER = candidates[0] if candidates else None
+    return _QGIS_PY_LAUNCHER
 
 
 # ─── POSIX CLI 模式（Linux/macOS）─────────────────────────────────────────────

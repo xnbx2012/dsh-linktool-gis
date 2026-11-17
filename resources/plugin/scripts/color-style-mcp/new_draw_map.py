@@ -1,10 +1,16 @@
 # ── 启动提示（必须在 arcpy 导入之前，让 PyCharm 等 IDE 立即看到进度） ──
+import sys
+
+try:
+    # 输出走 UTF-8（服务器侧不再传 PYTHONIOENCODING：显式 env 块会破坏 arcpy 子进程）
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, ValueError):
+    pass
 print("[START] full_export.py 启动中...", flush=True)
 print("[START] 正在加载 arcpy（ArcGIS Pro SDK，首次加载约 30~50 秒）...", flush=True)
 
 import arcpy
 import json
-import sys
 import os
 import traceback
 

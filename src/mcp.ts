@@ -32,7 +32,8 @@ export function resolveMcp(server: string, original: McpConfig, projectDir = pro
       ...env,
       UV_PROJECT_ENVIRONMENT: join(packageRoot, '.runtime', 'mcp', server),
       // 五引擎开关文件：适配层随设置页 volatile 写入实时落盘，MCP 每次调用读取。
-      ...(server === 'arcgis-mcp-server' ? { LINKTOOL_ENGINE_SWITCHES: engineSwitchesFile() } : {}),
+      // color-style 需要同一份开关来选择制图后端（ArcGIS Pro 优先，QGIS 兜底）。
+      ...(['arcgis-mcp-server', 'color-style'].includes(server) ? { LINKTOOL_ENGINE_SWITCHES: engineSwitchesFile() } : {}),
     },
   };
 }

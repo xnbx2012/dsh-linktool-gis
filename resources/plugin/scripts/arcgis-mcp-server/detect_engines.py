@@ -9,7 +9,7 @@
   arcpy  ArcGIS Pro（arcgispro-py3 解释器定位）
 
 stdout 输出单个 JSON 文档（适配层从中解析）：
-  {"engines": {"<name>": {"available": bool, "detail": str}}, "checked_at": iso}
+  {"engines": {"<name>": {"available": bool, "detail": str, "version": str}}, "checked_at": iso}
 退出码恒为 0：单引擎探测失败不阻断其余引擎，失败也以 JSON 表达。
 """
 
@@ -17,7 +17,11 @@ import concurrent.futures
 import datetime
 import json
 import os
+import platform
+import re
+import subprocess
 import sys
+from pathlib import Path
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _SHARED_DIR = os.path.abspath(os.path.join(_THIS_DIR, "..", "shared"))
@@ -39,21 +43,61 @@ except Exception:  # noqa: BLE001 —— 修复失败不阻断探测
 PROBE_TIMEOUT_SECONDS = 600
 
 
-def _probe(name: str) -> tuple[bool, str]:
-    """探测单个引擎，返回 (available, detail)。异常转 False，不向上抛。"""
+def _tidy_version(raw: object) -> str | None:
+    """从任意探测输出中提取首个版本号形 token（如 2.4.0 / 3.44.12）；无则 None。"""
+    match = re.search(r"(\d+\.\d+(?:\.\d+)?(?:\.\d+)?)", str(raw or ""))
+    return match.group(1) if match else None
+
+
+def _arcpy_pro_version(interpreter: str | None) -> str | None:
+    """ArcGIS Pro 产品版本：读 <安装根>/bin/ArcGISPro.exe 的版本信息。
+
+    不 import arcpy（冷启动 10-30s，会拖慢整个探测）；改为经 PowerShell 读
+    PE 版本资源（亚秒级）。非 Windows 或读取失败返回 None（UI 隐藏版本号）。
+    """
+    if os.name != "nt" or not interpreter:
+        return None
+    # 解释器形如 <安装根>/bin/Python/envs/arcgispro-py3/python.exe（clone 环境层级一致），
+    # 逐级向上找 <安装根>/bin/ArcGISPro.exe，不假设固定层级。
+    target: Path | None = None
+    for ancestor in Path(interpreter).parents:
+        candidate = ancestor / "bin" / "ArcGISPro.exe"
+        if candidate.is_file():
+            target = candidate
+            break
+    if target is None:
+        return None
+    try:
+        proc = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             f"(Get-Item -LiteralPath '{target}').VersionInfo.ProductVersion"],
+            capture_output=True, text=True, timeout=30,
+        )
+        return _tidy_version(proc.stdout)
+    except Exception:  # noqa: BLE001 —— 版本号缺失不影响可用性判定
+        return None
+
+
+def _probe(name: str) -> tuple[bool, str, str]:
+    """探测单个引擎，返回 (available, detail, version)。异常转 False，不向上抛。"""
     try:
         if name == "inner":
             from native_tools import CUSTOM_TOOL_REGISTRY  # type: ignore
 
             count = len(CUSTOM_TOOL_REGISTRY)
-            return count > 0, f"{count} 个内置工具（geopandas/shapely 进程内，零外部依赖）"
+            version = f"Python {platform.python_version()}" if count > 0 else ""
+            return count > 0, f"{count} 个内置工具（geopandas/shapely 进程内，零外部依赖）", version
 
         if name == "wbt":
             import whitebox  # type: ignore
 
             tools = whitebox.WhiteboxTools().list_tools()
             count = len(tools) if isinstance(tools, dict) else 0
-            return count > 0, f"{count} 个 WhiteboxTools 工具"
+            try:
+                version = _tidy_version(whitebox.WhiteboxTools().version()) or ""
+            except Exception:  # noqa: BLE001 —— 版本号失败不影响可用性
+                version = ""
+            return count > 0, f"{count} 个 WhiteboxTools 工具", version
 
         if name == "gdal":
             from gdal_engine import GDAL_TOOL_CATALOG, _probe_gdal_bin_dir  # type: ignore
@@ -65,28 +109,40 @@ def _probe(name: str) -> tuple[bool, str]:
                 detail += f"；CLI 二进制：{bin_dir}"
             else:
                 detail += "；CLI 二进制未找到（进程内 rasterio/pyogrio 工具仍可用）"
-            return count > 0, detail
+            version = ""
+            try:
+                import rasterio  # type: ignore
+
+                version = _tidy_version(getattr(rasterio, "__gdal_version__", "")) or ""
+            except Exception:  # noqa: BLE001
+                pass
+            return count > 0, detail, version
 
         if name == "qgis":
-            from qgis_engine import list_qgis_algorithms, qgis_available  # type: ignore
+            from qgis_engine import list_qgis_algorithms, qgis_available, qgis_version  # type: ignore
 
             if not qgis_available():
                 return False, (
                     "未找到 QGIS：Windows 需 qgis_process*.bat（Program Files/QGIS），"
                     "Linux/macOS 需 PATH 上的 qgis_process"
-                )
+                ), ""
             algos = list_qgis_algorithms()
-            return bool(algos), f"{len(algos)} 个 QGIS 处理算法"
+            try:
+                version = qgis_version() or ""
+            except Exception:  # noqa: BLE001
+                version = ""
+            return bool(algos), f"{len(algos)} 个 QGIS 处理算法", version
 
         if name == "arcpy":
             from find_arcpy import find_py_interpreter  # type: ignore
 
             exe = find_py_interpreter()
-            return bool(exe), (exe or "未找到 ArcGIS Pro arcgispro-py3 解释器（Windows 专属引擎）")
+            version = _arcpy_pro_version(exe) or ""
+            return bool(exe), (exe or "未找到 ArcGIS Pro arcgispro-py3 解释器（Windows 专属引擎）"), version
 
     except Exception as e:  # noqa: BLE001 —— 探测失败即不可用，不阻断其余引擎
-        return False, f"探测异常: {type(e).__name__}: {e}"
-    return False, "未知引擎"
+        return False, f"探测异常: {type(e).__name__}: {e}", ""
+    return False, "未知引擎", ""
 
 
 def main() -> None:
@@ -101,12 +157,15 @@ def main() -> None:
         futures = {name: pool.submit(_probe, name) for name in engines}
         for name, fut in futures.items():
             try:
-                available, detail = fut.result(timeout=PROBE_TIMEOUT_SECONDS)
+                available, detail, version = fut.result(timeout=PROBE_TIMEOUT_SECONDS)
             except concurrent.futures.TimeoutError:
-                available, detail = False, f"探测超时（>{PROBE_TIMEOUT_SECONDS}s）"
+                available, detail, version = False, f"探测超时（>{PROBE_TIMEOUT_SECONDS}s）", ""
             except Exception as e:  # noqa: BLE001
-                available, detail = False, f"探测异常: {e}"
-            out[name] = {"available": bool(available), "detail": str(detail)}
+                available, detail, version = False, f"探测异常: {e}", ""
+            row: dict[str, object] = {"available": bool(available), "detail": str(detail)}
+            if version:
+                row["version"] = str(version)
+            out[name] = row
 
     print(json.dumps(
         {

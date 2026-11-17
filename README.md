@@ -2,7 +2,7 @@
 
 将原 Claude Code GIS 插件迁移为 DeepSeek Harness 的 Cordis 插件。包含 **6 个 Agent、21 个注册 Skill、8 个 MCP 配置、10 个已启用的 hook 命令绑定**，以及完整的源程序、参考资料、二进制和依赖资料。原文件存放在 `resources/plugin`，提示词正文没有改写。
 
-目标版本：**DeepSeek Harness 0.2.1-rc.5**。不要直接在 0.1.x 或 0.2.0-rc.2 上加载；这些版本的 Agent、Skill、Workflow 接口不同。
+目标版本：**DeepSeek Harness 0.2.1-rc.5 ～ 0.2.2-rc.3**。兼容区间以插件 `package.json` 的 `engines.dsh: ">=0.2.1-rc.5 <0.3.0-0"` 声明（半开区间；0.2.1-rc.5 与 0.2.2-rc.3 双栈实测：插件装载、设置页读写、引擎探测与 MCP 均正常）。不要直接在 0.1.x 或 0.2.0-rc.2 上加载；这些版本的 Agent、Skill、Workflow 接口不同。注意 dsh 0.2.2（cordis 4.1）存在启动期 reconcile 窗口：过早的插件侧设置写入会失败，适配层已带退避重试，宿主就绪后自动补写。
 
 ## 0. 设置页（LinkTool-GIS 标签页）
 
@@ -65,6 +65,7 @@ Harness Web 界面的 **设置 → LinkTool-GIS** 提供各 Hook 的单独开关
 - Git for Windows：原 Skill 命令使用 Bash 语法；Windows Harness 默认只有 PowerShell，本插件通过 Git Bash 适配这些命令。
 - 系统 `tar` 可用（Windows 10/11 通常自带）。安装脚本用它恢复完整源资源。
 - GIS 引擎按需安装（设置页可逐个开关）：**ArcGIS Pro**（arcpy 引擎，默认关闭）需要授权安装；**QGIS** 安装后 qgis 引擎自动可用；**Whitebox/GDAL/内置** 引擎随 Python 依赖自动就绪，无需额外安装。不装任何外部 GIS 软件时，内置 + Whitebox + GDAL 三个引擎仍可完成大多数矢量/栅格分析。
+- 制图双后端（`create_map`）：ArcGIS Pro 可用时经 ArcPy 出图，否则自动落到 QGIS 后端（`qgis_draw_map.py`，同一 JSON 契约；底图按地图范围抓 XYZ 瓦片拼贴，Esri 影像/地形/OSM）。后端由设置页引擎开关决定，结果带 `backend` 字段，两个后端均未可用时报明确错误。
 - Harness 需要配置自己的模型账户/API。MCP 的业务 API 凭据也是接收方自己的配置。
 
 可以用这些命令检查前置环境：

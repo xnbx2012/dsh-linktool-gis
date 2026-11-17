@@ -58,11 +58,18 @@ scripts/
 **启动**: `uv run --with mcp[cli] python color_style_server.py`
 **cwd**: `${CLAUDE_PLUGIN_ROOT}/scripts/color-style-mcp`
 
+### 双后端
+
+`create_map` 按设置页引擎开关自动选择制图后端（MCP 接口完全一致，结果带 `backend` 字段）：
+- **arcpy**（优先）：ArcGIS Pro 开关开且解释器可用 → `new_draw_map.py` 经 arcgispro-py3 执行
+- **qgis**（兜底）：QGIS 开关开且 `python-qgis*.bat` 可用 → `qgis_draw_map.py` 经 QGIS 自带 Python 执行（符号/标注/整饰转 PyQGIS，底图按地图范围抓 XYZ 瓦片拼贴）
+
 ### 工具列表
 
 | 工具名 | 描述 |
 |--------|------|
 | `create_map` | 根据 JSON 样式配置制图，输出 300dpi PNG |
+| `get_basemap_names` | 返回可用底图名称列表与当前后端 |
 
 ### JSON 样式规范
 

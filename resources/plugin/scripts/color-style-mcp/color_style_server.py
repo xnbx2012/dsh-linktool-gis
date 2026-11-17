@@ -1,11 +1,17 @@
 """
 Color-Style MCP Server
 
-ArcGIS地图制图MCP服务器，仅暴露两个工具：
-- create_map: 通过 new_draw_map.py 实现多图层制图与PNG导出（subprocess调用）
+地图制图MCP服务器，仅暴露两个工具：
+- create_map: 制图与 300dpi PNG 导出（ArcPy 或 QGIS 后端，subprocess调用）
 - get_basemap_names: 返回可用的底图名称列表
 
-所有 ArcPy 操作均在 ArcGIS Pro Python 解释器中通过 subprocess 执行。
+双后端（对 MCP 工具名/参数规范/LLM 调用方式完全透明）：
+- arcpy：new_draw_map.py 在 ArcGIS Pro Python 解释器中执行（原有能力保留）
+- qgis ：qgis_draw_map.py 在 QGIS 自带 Python（python-qgis*.bat）中执行，
+  底图转 XYZ 瓦片、符号/标注/整饰要素转 PyQGIS 等价实现
+
+后端选择尊重宿主设置页的引擎开关（LINKTOOL_ENGINE_SWITCHES → engine-switches.json）：
+ArcGIS Pro 开关打开且解释器可用时优先 ArcPy，否则用 QGIS；两者都不可用时报错。
 """
 
 import json
@@ -17,12 +23,13 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-# 将 scripts/shared 加入 import 路径，以便复用 find_arcpy 公共模块
+# 将 scripts/shared 加入 import 路径，以便复用 find_arcpy/qgis_engine 公共模块
 _SHARED_DIR = Path(__file__).resolve().parent.parent / "shared"
 if str(_SHARED_DIR) not in sys.path:
     sys.path.insert(0, str(_SHARED_DIR))
 
 from find_arcpy import find_py_interpreter  # noqa: E402
+from qgis_engine import qgis_python_launcher  # noqa: E402
 
 # 初始化FastMCP服务器
 mcp = FastMCP("color-style-server")
@@ -30,6 +37,7 @@ mcp = FastMCP("color-style-server")
 # ── 路径常量 ──
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _NEW_DRAW_MAP = _SCRIPT_DIR / "new_draw_map.py"
+_QGIS_DRAW_MAP = _SCRIPT_DIR / "qgis_draw_map.py"
 _APRX_PATH = _SCRIPT_DIR / "catagraphy_project" / "LinkTool.aprx"
 
 # 与 new_draw_map.py 中保持一致的可选底图名称列表
@@ -82,14 +90,13 @@ def execute_arcpy_script(script_path: str | os.PathLike, input_data: dict | None
         }
 
     try:
-        # 强制子进程 stdin/stdout/stderr 使用 UTF-8，避免 Windows 中文环境下默认 GBK 导致乱码
-        env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+        # 不显式传 env：构造新环境块会破坏 arcpy 子进程（实测挂起/ModuleNotFoundError），
+        # 直接继承父环境；脚本内部已自行 reconfigure stdout 为 UTF-8
         result = subprocess.run(
             [python_exe, script_path],
             input=json.dumps(input_data, ensure_ascii=False).encode('utf-8') if input_data else None,
             capture_output=True,
             timeout=480,  # 8分钟超时（arcpy 加载最长需要 50s，制图逻辑额外需要时间）
-            env=env,
         )
         stdout_text = result.stdout.decode('utf-8', errors='replace') if result.stdout else ''
         stderr_text = result.stderr.decode('utf-8', errors='replace') if result.stderr else ''
@@ -213,13 +220,103 @@ def validate_map_json(params: dict) -> list[str]:
     return errors
 
 
+def _read_engine_switches() -> dict[str, bool]:
+    """读取宿主引擎开关（env LINKTOOL_ENGINE_SWITCHES → JSON 文件）；缺失时按全部可用处理。"""
+    path = os.environ.get("LINKTOOL_ENGINE_SWITCHES", "").strip()
+    if not path or not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return {k: bool(v) for k, v in data.items() if isinstance(k, str)}
+    except Exception:  # noqa: BLE001 —— 开关读不到按默认处理，不阻断制图
+        return {}
+
+
+def select_backend() -> tuple[str, str | None, str | None]:
+    """选择制图后端。返回 (backend, 执行体路径, 错误信息)。
+
+    规则（尊重设置页引擎开关；无开关文件时按全部可用处理，保持旧行为）：
+      1. ArcGIS Pro 开关开且解释器可用 → ('arcpy', new_draw_map.py)
+      2. QGIS 开关开且 python-qgis*.bat 可用 → ('qgis', qgis_draw_map.py)
+      3. 已开启的引擎缺失/另一引擎被关闭 → 返回明确错误
+    """
+    switches = _read_engine_switches()
+    arcpy_on = switches.get("arcpy", True)
+    qgis_on = switches.get("qgis", True)
+    arcpy_exe = find_py_interpreter()
+    qgis_launcher = qgis_python_launcher()
+
+    if arcpy_on and arcpy_exe:
+        return "arcpy", str(_NEW_DRAW_MAP), None
+    if qgis_on and qgis_launcher:
+        return "qgis", str(_QGIS_DRAW_MAP), None
+
+    reasons = []
+    if not arcpy_on and not qgis_on:
+        reasons.append("设置页中 ArcGIS Pro 与 QGIS 引擎开关均为关闭")
+    if arcpy_on and not arcpy_exe:
+        reasons.append("ArcGIS Pro 引擎已开启，但未找到 arcgispro-py3 解释器（设置 ARCGIS_PRO_PATH 或安装 ArcGIS Pro）")
+    if qgis_on and not qgis_launcher:
+        reasons.append("QGIS 引擎已开启，但未找到 python-qgis*.bat 启动器（需安装 QGIS 3.x）")
+    return "", None, "无可用制图后端：" + "；".join(reasons)
+
+
+def execute_qgis_script(script_path: str | os.PathLike, input_data: dict | None = None) -> dict[str, Any]:
+    """经 QGIS 自带 Python 启动器执行制图脚本（stdin JSON 进、stdout JSON 行出）。"""
+    launcher = qgis_python_launcher()
+    if not launcher:
+        return {"success": False, "result": None, "error": "未找到 QGIS python-qgis*.bat 启动器（需安装 QGIS 3.x）"}
+    script_path = str(script_path)
+    if not os.path.isfile(script_path):
+        return {"success": False, "result": None, "error": f"脚本文件不存在: {script_path}"}
+    try:
+        # 与 execute_arcpy_script 一致：继承父环境（脚本内部自行 reconfigure UTF-8）
+        result = subprocess.run(
+            [launcher, script_path],
+            input=json.dumps(input_data, ensure_ascii=False).encode("utf-8") if input_data else None,
+            capture_output=True,
+            timeout=480,
+        )
+        stdout_text = result.stdout.decode("utf-8", errors="replace") if result.stdout else ""
+        stderr_text = result.stderr.decode("utf-8", errors="replace") if result.stderr else ""
+
+        if result.returncode != 0:
+            return {
+                "success": False,
+                "result": None,
+                "error": f"脚本执行失败 (returncode={result.returncode}): {stderr_text.strip()[-300:]}",
+            }
+
+        stdout = stdout_text.strip()
+        if not stdout:
+            return {"success": False, "result": None, "error": f"脚本未产生任何输出。stderr: {stderr_text.strip()[-300:]}"}
+
+        json_line = None
+        for line in reversed(stdout.splitlines()):
+            line = line.strip()
+            if line.startswith("{") and line.endswith("}"):
+                json_line = line
+                break
+        if json_line is None:
+            return {"success": True, "result": stdout, "error": None}
+        try:
+            return {"success": True, "result": json.loads(json_line), "error": None}
+        except json.JSONDecodeError:
+            return {"success": True, "result": json_line, "error": None}
+    except subprocess.TimeoutExpired:
+        return {"success": False, "result": None, "error": "脚本执行超时（8分钟）"}
+    except Exception as e:  # noqa: BLE001
+        return {"success": False, "result": None, "error": f"执行错误: {e}"}
+
+
 @mcp.tool()
 async def create_map(map_json: str) -> str:
     """
-    创建 ArcGIS 地图并导出为 300dpi PNG。
+    创建地图并导出为 300dpi PNG。
 
     接收完整 JSON 配置，支持多图层、多种符号系统、标注控制和地图要素配置。
-    内部通过 subprocess 在 ArcGIS Pro Python 解释器中执行 new_draw_map.py。
+    后端按设置页引擎开关自动选择（ArcGIS Pro 优先，QGIS 兜底；JSON 契约两者一致）。
 
     Args:
         map_json: JSON 格式的地图配置字符串，包含 layout、layers、map_elements 等字段
@@ -244,11 +341,19 @@ async def create_map(map_json: str) -> str:
             "details": validation_errors
         }, ensure_ascii=False, indent=2)
 
-    # 注入 aprx 路径
-    params["aprx_path"] = str(_APRX_PATH)
+    backend, executable, error = select_backend()
+    if error:
+        return json.dumps({"success": False, "error": error}, ensure_ascii=False, indent=2)
 
-    # 通过 subprocess 调用 new_draw_map.py
-    result = execute_arcpy_script(_NEW_DRAW_MAP, params)
+    if backend == "arcpy":
+        # 注入 aprx 路径（仅 ArcPy 后端使用；QGIS 后端忽略该字段）
+        params["aprx_path"] = str(_APRX_PATH)
+        result = execute_arcpy_script(executable, params)
+    else:
+        result = execute_qgis_script(executable, params)
+
+    if isinstance(result.get("result"), dict):
+        result["result"].setdefault("backend", backend)
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 
@@ -257,17 +362,22 @@ async def get_basemap_names() -> str:
     """
     返回 color-style-mcp 支持的底图（basemap）名称列表。
 
-    调用方在 map_elements.basemap_name 中传入这些名称之一即可启用对应底图；
-    传入空字符串或不匹配的值时，new_draw_map.py 会自动移除已有底图图层。
+    调用方在 layout.basemap_name 中传入这些名称之一即可启用对应底图；
+    传入空字符串时无底图。ArcGIS Pro 后端使用同名 Esri 底图；QGIS 后端将
+    名称映射为 XYZ 瓦片（无同名瓦片的名称以 Topographic 近似并在结果中记 warning）。
 
     Returns:
-        JSON 字符串，包含 success 标志和 basemap_names 数组
+        JSON 字符串，包含 success 标志、basemap_names 数组与当前后端
     """
+    backend, _, error = select_backend()
     return json.dumps({
         "success": True,
         "basemap_names": VALID_BASEMAPS,
         "count": len(VALID_BASEMAPS),
-        "note": "将名称传入 create_map 的 layout.basemap_name 即可启用底图；空值或不匹配名称将自动移除底图"
+        "backend": backend or "unavailable",
+        "note": "将名称传入 create_map 的 layout.basemap_name 即可启用底图；空值将不添加底图"
+                + ("；QGIS 后端将名称映射为 XYZ 瓦片，无同名瓦片时以 Topographic 近似" if backend == "qgis" else ""),
+        **({"error": error} if error else {}),
     }, ensure_ascii=False, indent=2)
 
 

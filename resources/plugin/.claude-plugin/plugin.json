@@ -20,7 +20,7 @@
       "args": [
         "run",
         "--with",
-        "mcp[cli]",
+        "mcp[cli]>=1.26,<2",
         "python",
         "${CLAUDE_PLUGIN_ROOT}/scripts/arcgis-mcp-server/main.py"
       ],
@@ -37,7 +37,7 @@
       "args": [
         "run",
         "--with",
-        "mcp[cli]",
+        "mcp[cli]>=1.26,<2",
         "python",
         "${CLAUDE_PLUGIN_ROOT}/scripts/color-style-mcp/color_style_server.py"
       ],
@@ -63,7 +63,7 @@
       "args": [
         "run",
         "--with",
-        "mcp[cli]",
+        "mcp[cli]>=1.26,<2",
         "--with",
         "pymupdf",
         "python",
