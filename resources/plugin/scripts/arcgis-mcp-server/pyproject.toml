@@ -1,11 +1,18 @@
 [project]
 name = "arcgis-mcp-server"
-version = "0.1.0"
-description = "ArcGIS MCP Server - GIS tools via ArcPy through FastMCP"
+version = "0.2.0"
+description = "ArcGIS MCP Server - five-engine GIS tools (inner/WhiteboxTools/GDAL/QGIS/arcpy) via FastMCP"
 readme = "README.md"
-requires-python = ">=3.12"
+# QGIS 4.x ships CPython 3.12 extension modules; an ABI-mismatched interpreter
+# cannot host QgsApplication in-process (qgis_engine.py Windows path).
+requires-python = ">=3.12,<3.13"
 dependencies = [
-    "mcp[cli]>=1.26.0",
+    "mcp[cli]>=1.26,<2",
+    "whitebox",
+    "pyogrio",
+    "geopandas",
+    "rasterio",
+    "shapely",
 ]
 
 [project.optional-dependencies]

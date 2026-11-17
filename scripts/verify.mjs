@@ -57,17 +57,22 @@ console.log('PASS PostToolUse 失败记录与 PostCompact 原脚本摘要');
   const logged = await logBridge.run('PostToolUse',{name:'mcp__arcgis-mcp-server__execute_gis_tool',arguments:{tool_name:'arcpy.management.GetCount',parameters:{}},agent:hookAgent,callId:'verify-off',signal:new AbortController().signal},{content:[{type:'text',text:'test error'}],isError:true,error:{message:'test error'}});
   assert(!logged.contexts.some(c=>c.includes('❌')), 'gisToolLog=off must skip the record hook');
   console.log('PASS hook 开关默认值与 gisToolLog 关闭过滤');
-  // MCP 执行限制：GIS 命令拦截、非 GIS 命令零误拦
+  // MCP 执行限制：五引擎 CLI 直调拦截、非 GIS 命令零误拦
   assert(guardArcpyCommand('python -c "import arcpy; arcpy.analysis.Buffer(...)"'), 'arcpy command must be intercepted');
-  assert(guardArcpyCommand('gdal_translate data.shp out.tif'), 'shapefile command must be intercepted');
+  assert(guardArcpyCommand('gdal_translate data.shp out.tif'), 'gdal CLI command must be intercepted');
+  assert(guardArcpyCommand('qgis_process run native:buffer -- INPUT=x.shp'), 'qgis_process command must be intercepted');
+  assert(guardArcpyCommand('whitebox_tools -i in.tif -o out.tif'), 'whitebox CLI command must be intercepted');
+  assert(guardArcpyCommand('ogr2ogr -f GeoJSON out.json in.shp'), 'ogr CLI command must be intercepted');
   assert(!guardArcpyCommand('python -c "import json; print(1)"'), 'plain python must pass');
   assert(!guardArcpyCommand('node scripts/build.mjs && npm test'), 'node/npm must pass');
   assert(!guardArcpyCommand('git status && tar -xzf a.tar.gz'), 'git/tar must pass');
   assert(!guardArcpyCommand('curl https://example.com -o page.html'), 'network fetch must pass');
-  // 包装脚本与内容级 arcpy 拦截（mcpRestrict 管 arcpy；antiBypass 管非 arcpy 包装）
+  // 包装脚本与内容级拦截（mcpRestrict 管 arcpy + 引擎 CLI；antiBypass 管其余包装脚本）
   assert(guardWrapperCommand('bash run_model.bat'), 'wrapper script must be intercepted');
   assert(!guardWrapperCommand('python -c "import arcpy"'), 'arcpy command belongs to mcpRestrict, not the wrapper floor');
   assert(guardWritableContent('Write', { file_path: 'x.py', content: 'import arcpy\narcpy.management.GetCount("a")' }, true), 'arcpy content denied while mcpRestrict on');
+  assert(guardWritableContent('Write', { file_path: 'x.py', content: 'subprocess.run(["qgis_process", "run", "native:buffer"])' }, true), 'engine CLI content denied while mcpRestrict on');
+  assert(!guardWritableContent('Write', { file_path: 'README.md', content: '本方案使用 GDAL 与 WhiteboxTools 完成栅格处理。' }, true), 'prose mentioning engines must pass');
   assert(!guardWritableContent('Write', { file_path: 'x.py', content: 'import arcpy\narcpy.management.GetCount("a")' }, false), 'arcpy content passes while mcpRestrict off');
   assert(!guardWritableContent('Write', { file_path: 'x.py', content: 'import json\nprint(1)' }, true), 'plain script content must pass');
   // 路径限制底线（危险命令永不放行；白名单仅在 pathRestrict 开启时生效）
@@ -99,14 +104,19 @@ console.log('PASS PostToolUse 失败记录与 PostCompact 原脚本摘要');
   // ConfigForm.set sends single-segment paths, so every switch must be a flat
   // top-level volatile field (the exact bug behind "开关写入失败").
   function isVolatilePath(schema, path) { if (schema.meta?.volatile) return true; const [key, ...rest] = path; const child = key === undefined ? undefined : schema.dict?.[key]; return child !== undefined && isVolatilePath(ref(child), rest); }
-  for (const field of ['guardPathRestrict', 'guardMcpRestrict', 'guardGisToolLog', 'guardParamValidate', 'guardDataBackup', 'guardResultValidate', 'guardFailurePattern', 'guardContextCompress', 'guardAntiBypass', 'guardSkillMd']) {
+  for (const field of ['guardPathRestrict', 'guardMcpRestrict', 'guardGisToolLog', 'guardParamValidate', 'guardDataBackup', 'guardResultValidate', 'guardFailurePattern', 'guardContextCompress', 'guardAntiBypass', 'guardSkillMd', 'engineArcgis', 'engineQgis', 'engineWhitebox', 'engineGdal', 'engineInner', 'engineStatus', 'engineDetectRequest']) {
     assert(root.dict?.[field] !== undefined, field + ' declared at the namespace root');
     assert(isVolatilePath(Config, [field]), field + ' accepts the single-segment settings write path');
   }
   const resolved = Config({});
   assert.equal(resolved.guardPathRestrict.get(), false, 'pathRestrict resolved default off');
   assert.equal(resolved.guardMcpRestrict.get(), true, 'mcpRestrict resolved default on');
-  console.log('PASS Config schema：扁平 volatile 开关接受设置页单段写入路径');
+  assert.equal(resolved.engineArcgis.get(), false, 'ArcGIS engine resolved default off');
+  assert.equal(resolved.engineQgis.get(), true, 'QGIS engine resolved default on');
+  assert.equal(resolved.engineWhitebox.get(), true, 'Whitebox engine resolved default on');
+  assert.equal(resolved.engineGdal.get(), true, 'GDAL engine resolved default on');
+  assert.equal(resolved.engineInner.get(), true, 'Inner engine resolved default on');
+  console.log('PASS Config schema：扁平 volatile 开关（hook 守卫 + 五引擎）接受设置页单段写入路径');
 }
 const patch = join(packageRoot, '.runtime', 'runtime-check.yml'); mkdirSync(join(packageRoot,'.runtime'), {recursive:true});
 writeFileSync(patch, `- id: headless-startup\n  disabled: true\n- id: headless-runner\n  disabled: true\n- insert:\n  - id: linktool-plugin\n    name: ${JSON.stringify(join(packageRoot, 'lib/index.js').replaceAll('\\','/'))}\n    config:\n      mcpEnabled: ${process.env.LINKTOOL_VERIFY_MCP==='1'}\n      enabledServers: ['amap-maps', 'arcgis-mcp-server', 'bing-search', 'color-style', 'knowledge-db', 'pdf-reader-mcp', 'MiniMax']\n      hooksEnabled: true\n  - id: linktool-runtime-check\n    name: ${JSON.stringify(join(packageRoot, 'scripts/runtime-check-plugin.mjs').replaceAll('\\','/'))}\n`);

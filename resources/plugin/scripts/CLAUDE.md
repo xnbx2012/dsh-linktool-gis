@@ -22,25 +22,22 @@ scripts/
 ## arcgis-mcp-server
 
 **文件**: `arcgis-mcp-server/main.py`
-**启动**: `uv run --with mcp[cli] python main.py`
-**依赖**: `pyproject.toml` + `uv.lock`（Python 3.14，MCP CLI）
+**启动**: `uv run python main.py`（uv 环境按 pyproject.toml + uv.lock）
+**依赖**: mcp[cli] / whitebox / pyogrio / geopandas / rasterio / shapely（Python >=3.12,<3.13）
 
-### 工具列表
+### 五引擎统一调度
 
-| 工具名 | 描述 | 关键参数 |
-|--------|------|---------|
-| `execute_gis_tool` | 执行任意 ArcGIS/ArcPy 工具 | `tool_name`（如 `arcpy.analysis.Buffer`）, `parameters`（参数字典） |
-| `list_gdb_contents` | 列出 GDB 内所有内容 | `gdb_path` |
-| `query_feature_attributes` | 查询要素类属性表 | `feature_path`, `sql_where`, `max_records` |
-| `get_data_properties` | 获取数据元信息（坐标系/范围/类型/字段） | `data_path` |
+`execute_gis_tool(tool_name, parameters)` 支持五种引擎，`tool_name` 前缀强制指定，裸名按 内置 → Whitebox → GDAL → QGIS → ArcPy 自动降级：
 
-### 运行机制
+| 前缀 | 引擎 | 示例 |
+|---|---|---|
+| `inner_` | 内置（纯 Python，零依赖） | `inner_buffer` |
+| `wbt_` | WhiteboxTools | `wbt_clip` |
+| `gdal_` / `gdal:` | GDAL 直执行 | `gdal_translate`、`gdal:slope` |
+| `qgis_` | QGIS 处理算法 | `qgis_native:buffer` |
+| `arcpy_` | ArcGIS Pro（Windows 专属） | `arcpy_analysis.Buffer` |
 
-1. `find_py_interpreter()` 自动定位 ArcGIS Pro Python 解释器（`arcgispro-py3` 环境）
-   - 检查顺序：环境变量 `ARCGIS_PRO_PATH` → 默认安装路径（C/D/E盘）→ AppData → 快捷方式 → 注册表
-2. 通过 `subprocess.run([python_exe, "-c", script_code])` 在 ArcGIS Pro Python 环境中执行脚本
-3. 脚本结果通过 stdout 以 JSON 格式返回
-4. `execute_gis_tool` 超时设置：15分钟（900秒）
+引擎开关由宿主设置页控制（`engine-switches.json` 每次调用实时读取）；查数据/查库等基础工具（`list_gdb_contents`、`query_feature_attributes`、`get_data_properties` 等）为内置实现，不依赖外部引擎。详见 `arcgis-mcp-server/CLAUDE.md`。
 
 ### 查询安全限制
 
@@ -49,21 +46,9 @@ scripts/
 
 ### 添加新工具
 
-在 `main.py` 末尾添加：
-
-```python
-@mcp.tool()
-async def my_new_tool(param1: str, param2: int = 10) -> str:
-    """工具描述，会显示给 Claude 作为工具说明"""
-    script = '''
-import arcpy, json, sys
-params = json.loads(sys.stdin.read())
-# ... arcpy 代码 ...
-print(json.dumps({"success": True, "result": ...}))
-'''
-    result = execute_arcpy_script(script, {"param1": param1, "param2": param2})
-    return json.dumps(result, ensure_ascii=False, indent=2)
-```
+- **内置引擎工具**：`shared/native_tools.py` 注册（推荐——零依赖、全平台）
+- **GDAL 工具**：`shared/gdal_engine.py` 的 GDAL_TOOL_CATALOG
+- **MCP 工具**：`main.py` 末尾 FastMCP `@mcp.tool()` 模式
 
 ---
 
@@ -165,7 +150,13 @@ print(json.dumps({"success": True, "result": ...}))
 
 **触发**: `execute_gis_tool` MCP 工具
 
-**规则**：与 `main.py` 相同的路径约束，但专门针对 GIS 工具的 `parameters` 中的输出路径字段
+**规则**：与 `main.py` 相同的路径约束，但专门针对 GIS 工具的 `parameters` 中的输出路径字段。输出键覆盖 `out_*`/`output_*`（arcpy）与五引擎统一键 `output`/`OUTPUT`/`*_output`。
+
+### `anti-bypass.py` — 引擎绕过拦截
+
+**触发**: Write/Edit/Update/Bash
+
+arcpy 内容特征（不区分大小写）+ 其余引擎 CLI 直调特征（小写二进制形态：`whitebox_tools`、`qgis_process`、`ogr2ogr`、`gdal_translate` 等，区分大小写避免误伤文档叙述）。一律引导改用 execute_gis_tool。
 
 ### `protected_dirs.json`
 

@@ -128,8 +128,8 @@ modify-protect-hook/
 
 与 `main.py` 相同的路径约束，但专门针对 GIS 工具的输出路径：
 
-1. 遍历 `tool_input.parameters` 字典中的**所有值**
-2. 将字符串值识别为潜在路径
+1. 遍历 `tool_input.parameters` 中的输出键：`out_*`/`output_*`（arcpy）与五引擎统一键 `output`/`outputs`/`sink`/`destination`/`*_output`
+2. 将字符串值识别为潜在路径（纯文件名与 URI 伪路径跳过）
 3. 检查是否落在允许的目录范围内
 4. 禁止输出到 `01_DataBackup`
 

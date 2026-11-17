@@ -1,0 +1,17 @@
+# GDAL 栈依赖（pyogrio / geopandas / rasterio）——单一事实源。
+#
+# 用途：data-backup / result-validate 两个 hook 经 shared/gis_io.py 读写矢量
+# 与栅格，需要这套 GDAL/OGR 绑定。它们的 hooks.json 启动命令以
+#   uv run --no-project --with-requirements "${DSH_PLUGIN_ROOT}/scripts/shared/gdal-requirements.txt" python ...
+# 启动，uv 据此构建（并缓存复用）含 GDAL 栈的临时环境。
+#
+# 注意：裸 `uv run --no-project python` 构建的临时环境无 GDAL 栈，
+# import 会失败（hook 内已按不可用降级：跳过 GDAL 校验/备份路径）。
+# 改这一个文件即对所有 GDAL hook 生效（版本/加包集中在此）。
+#
+# 版本不锁死，与 arcgis-mcp-server/pyproject.toml 的 GDAL 栈约束保持兼容
+# （uv wheel 缓存命中后秒级解析）。
+pyogrio>=0.7
+geopandas>=1.0
+rasterio>=1.3
+numpy

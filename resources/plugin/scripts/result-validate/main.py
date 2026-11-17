@@ -9,6 +9,12 @@
 - 通过 additionalContext 将验证报告注入 Claude 上下文
 - 严重问题时通过 stderr 警告 Claude
 
+实现路径（按可用性降级）：
+1. 进程内 GDAL 栈（pyogrio/geopandas/rasterio，经 shared/gis_io.py）——约 1s，
+   五引擎（inner/wbt/gdal/qgis/arcpy）输出通用，Linux 可用。hooks.json 以
+   `uv run --no-project --with-requirements …/gdal-requirements.txt` 注入依赖。
+2. arcpy 子进程（shared/find_arcpy.py）——GDAL 栈不可用时的 Windows 兜底，5-15s。
+
 退出码：0=始终放行（PostToolUse 不阻止已执行的操作）
 """
 
@@ -24,7 +30,6 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='repla
 
 # 添加共享模块路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
-from find_arcpy import run_arcpy_script
 
 # 验证阈值
 CONFIG = {
@@ -51,8 +56,9 @@ NON_SPATIAL_OUTPUT_PARAMS = {
     'output_slope_measurement', 'output_measurement', 'output_value_field',
 }
 
-# 输出路径参数（覆盖 out_* 和 output_* 两种前缀）
+# 输出路径参数（覆盖 out_* 和 output_* 两种前缀，及五引擎统一输出键 output/OUTPUT）
 OUTPUT_PATH_PARAMS = {
+    'output', 'outputs',
     # out_* 前缀
     'out_feature_class', 'out_featureclass', 'out_features', 'out_feature_dataset',
     'out_raster', 'out_raster_dataset', 'out_rasterdataset',
@@ -86,21 +92,44 @@ OUTPUT_PATH_PARAMS = {
 # 输入路径参数
 INPUT_PATH_PARAMS = {
     'in_features', 'in_raster', 'in_table', 'input_features', 'in_features_or_layer',
-    'in_feature_class', 'in_zone_data', 'in_data'
+    'in_feature_class', 'in_zone_data', 'in_data',
+    'input', 'inputs',  # 五引擎统一输入键（inner/gdal/wbt 用 input，QGIS 大写 INPUT）
 }
 
 # 坐标系转换工具（输出 CRS 可能与输入不同）
 CRS_CHANGE_TOOLS = {
     'arcpy.management.Project', 'arcpy.management.ProjectRaster',
-    'arcpy.management.BatchProject', 'arcpy.management.DefineProjection'
+    'arcpy.management.BatchProject', 'arcpy.management.DefineProjection',
+    'inner_project', 'project',  # 内置引擎重投影
 }
 
 # 范围变化工具（输出范围可能显著不同）
 EXTENT_CHANGE_TOOLS = {
     'arcpy.analysis.Buffer', 'arcpy.analysis.Clip', 'arcpy.analysis.Erase',
     'arcpy.analysis.Intersect', 'arcpy.analysis.Union', 'arcpy.analysis.SpatialJoin',
-    'arcpy.management.Extent', 'arcpy.management.MinimumBoundingGeometry'
+    'arcpy.management.Extent', 'arcpy.management.MinimumBoundingGeometry',
+    # 内置引擎（前缀与裸名两种形态）
+    'inner_buffer', 'inner_clip', 'buffer', 'clip',
+    # whitebox / gdal 直执行中的范围敏感工具
+    'wbt_clip', 'gdal:cliprasterbyextent', 'gdal:cliprasterbymasklayer',
+    'gdal_translate', 'gdal:translate', 'gdal:warp', 'gdal:warptocrs',
 }
+
+
+def _tool_matches(tool_name: str, tools: set[str]) -> bool:
+    """工具名是否命中工具集（容忍引擎前缀与冒号形态）。
+
+    'qgis_native:buffer' / 'inner_buffer' / 'native:buffer' 都视为命中 'buffer'。
+    """
+    if tool_name in tools:
+        return True
+    n = tool_name.strip().lower().replace('-', '_')
+    for prefix in ('arcpy.', 'arcpy_', 'inner_', 'wbt_', 'gdal_', 'qgis_'):
+        if n.startswith(prefix):
+            n = n[len(prefix):]
+    if n in tools:
+        return True
+    return n.split(':')[-1] in tools
 
 
 def extract_paths(parameters: dict) -> tuple[str, str]:
@@ -124,9 +153,116 @@ def extract_paths(parameters: dict) -> tuple[str, str]:
     return input_path, output_path
 
 
-def run_validation(output_path: str, input_path: str, tool_name: str) -> dict:
-    """运行 ArcPy 验证脚本"""
-    script = '''
+# ─── 路径 1：进程内 GDAL 栈（五引擎通用，~1s） ────────────────────────────────
+def _gdal_stack_available() -> bool:
+    try:
+        import pyogrio  # noqa: F401
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def run_validation_gdal(output_path: str, input_path: str, tool_name: str) -> dict:
+    """进程内 GDAL/pyogrio 验证。报告结构与 arcpy 版一致（info/warnings）。"""
+    from gis_io import data_properties, query_attributes, repair_proj_env
+
+    repair_proj_env()
+    info: dict = {}
+    warnings: list[str] = []
+
+    props = data_properties(output_path)
+    if not props.get("success"):
+        return {"success": False, "error": props.get("error") or "读取输出数据失败"}
+
+    info["data_type"] = props.get("data_type") or "未知"
+    info["name"] = props.get("name") or os.path.basename(output_path)
+    coord = props.get("coordinate_system") or {}
+    info["crs_name"] = coord.get("name")
+    info["crs_wkid"] = coord.get("factory_code") or coord.get("wkid")
+    if not info["crs_name"]:
+        warnings.append("⚠️ 输出数据缺少坐标系信息")
+    info["extent"] = props.get("extent")
+    info["shape_type"] = props.get("shape_type") or None
+
+    feature_count = props.get("feature_count")
+    if feature_count is not None:
+        info["feature_count"] = int(feature_count)
+        if info["feature_count"] == 0:
+            warnings.append("🔴 输出数据包含 0 个要素！")
+
+    fields = props.get("fields") or []
+    attr_fields = [
+        f for f in fields
+        if str(f.get("type", "")).lower() not in ("geometry", "oid")
+        and not str(f.get("name", "")).lower().startswith("shape")
+    ]
+    info["field_count"] = len(attr_fields)
+
+    # ── 属性抽样：空值率 / 零值率 ──
+    if attr_fields and (info.get("feature_count") or 0) > 0 and info["data_type"] != "RasterDataset":
+        qa = query_attributes(output_path, max_records=CONFIG["max_sample_records"])
+        if qa.get("success"):
+            rows = qa.get("data") or []
+            total = len(rows)
+            null_counts = {f["name"]: 0 for f in attr_fields}
+            zero_counts = {f["name"]: 0 for f in attr_fields}
+            for row in rows:
+                for fname in null_counts:
+                    v = row.get(fname)
+                    if v is None or (isinstance(v, str) and v.strip() == ""):
+                        null_counts[fname] += 1
+                    elif isinstance(v, (int, float)) and not isinstance(v, bool) and v == 0:
+                        zero_counts[fname] += 1
+            for fname in null_counts:
+                if total <= 0:
+                    continue
+                null_rate = null_counts[fname] / total
+                zero_rate = zero_counts[fname] / total
+                if null_rate > CONFIG["null_warning_threshold"]:
+                    warnings.append(f"⚠️ 字段 '{fname}' 空值率 {null_rate*100:.1f}%（共 {total} 条记录）")
+                if zero_rate > CONFIG["zero_warning_threshold"] and fname.upper() not in ("FID", "OBJECTID"):
+                    warnings.append(f"⚠️ 字段 '{fname}' 零值率 {zero_rate*100:.1f}%")
+
+    # ── 栅格属性 ──
+    if info["data_type"] == "RasterDataset":
+        rp = props.get("raster_properties") or {}
+        if rp:
+            info["raster_size"] = f"{rp.get('width', '?')}x{rp.get('height', '?')}"
+            info["band_count"] = rp.get("band_count")
+            cs = rp.get("cell_size")
+            info["cell_size"] = f"{cs}x{cs}" if isinstance(cs, (int, float)) else (cs or None)
+
+    # ── 与输入对比 ──
+    if input_path:
+        try:
+            iprops = data_properties(input_path)
+            if iprops.get("success"):
+                icoord = iprops.get("coordinate_system") or {}
+                in_wkid = icoord.get("factory_code") or icoord.get("wkid")
+                out_wkid = info.get("crs_wkid")
+                if in_wkid and out_wkid and in_wkid != out_wkid and not _tool_matches(tool_name, CRS_CHANGE_TOOLS):
+                    warnings.append(f"⚠️ 坐标系变化: 输入 WKID={in_wkid} → 输出 WKID={out_wkid}")
+
+                iext = iprops.get("extent")
+                oext = info.get("extent")
+                if iext and oext:
+                    in_area = max(1, (iext["xmax"] - iext["xmin"]) * (iext["ymax"] - iext["ymin"]))
+                    out_area = max(1, (oext["xmax"] - oext["xmin"]) * (oext["ymax"] - oext["ymin"]))
+                    ratio = max(in_area, out_area) / max(1, min(in_area, out_area))
+                    if ratio > CONFIG["extent_ratio_threshold"] and not _tool_matches(tool_name, EXTENT_CHANGE_TOOLS):
+                        warnings.append(f"⚠️ 空间范围变化异常（{ratio:.1f}倍），请检查结果是否正确")
+
+                in_count = iprops.get("feature_count")
+                if in_count and info.get("feature_count") == 0:
+                    warnings.append(f"🔴 输入有 {int(in_count)} 个要素，输出为 0 个！")
+        except Exception:  # noqa: BLE001
+            pass  # 输入数据检查失败不影响整体验证
+
+    return {"success": True, "result": {"info": info, "warnings": warnings}}
+
+
+# ─── 路径 2：arcpy 子进程（Windows 兜底） ─────────────────────────────────────
+_ARCPY_VALIDATION_SCRIPT = '''
 import arcpy
 import json
 import sys
@@ -140,13 +276,11 @@ warnings = []
 info = {}
 
 try:
-    # 检查输出是否存在
     desc = arcpy.Describe(output_path)
     data_type = desc.dataType
     info["data_type"] = data_type
     info["name"] = desc.name
 
-    # ===== 几何验证 =====
     if hasattr(desc, 'shapeType'):
         info["shape_type"] = desc.shapeType
 
@@ -167,7 +301,6 @@ try:
     else:
         info["extent"] = None
 
-    # 要素数量
     if data_type in ('FeatureClass', 'ShapeFile', 'Shapefile'):
         try:
             count = int(arcpy.management.GetCount(output_path)[0])
@@ -177,20 +310,14 @@ try:
         except Exception:
             info["feature_count"] = None
 
-    # ===== 属性检验 =====
     if hasattr(desc, 'fields') and desc.fields:
         fields_info = []
         for f in desc.fields:
             if f.name.startswith("Shape") or f.type in ("OID", "Geometry"):
                 continue
-            fields_info.append({
-                "name": f.name, "type": f.type,
-                "length": f.length if hasattr(f, 'length') else None,
-                "nullable": f.isNullable if hasattr(f, 'isNullable') else None
-            })
+            fields_info.append({"name": f.name, "type": f.type})
         info["field_count"] = len(fields_info)
 
-        # 采样检查空值和零值
         if fields_info and info.get("feature_count", 0) > 0:
             field_names = [f["name"] for f in fields_info]
             null_counts = {n: 0 for n in field_names}
@@ -217,23 +344,17 @@ try:
                     if zero_rate > params.get("zero_threshold", 0.80) and fname not in ("FID", "OBJECTID"):
                         warnings.append(f"⚠️ 字段 '{fname}' 零值率 {zero_rate*100:.1f}%")
 
-    # ===== 与输入对比 =====
     if input_path:
         try:
             input_desc = arcpy.Describe(input_path)
-
-            # 坐标系对比
             if hasattr(input_desc, 'spatialReference') and input_desc.spatialReference:
                 input_sr = input_desc.spatialReference
                 input_wkid = input_sr.factoryCode if hasattr(input_sr, 'factoryCode') else None
                 output_wkid = info.get("crs_wkid")
                 if input_wkid and output_wkid and input_wkid != output_wkid:
                     if tool_name not in params.get("crs_change_tools", set()):
-                        warnings.append(
-                            f"⚠️ 坐标系变化: 输入 WKID={input_wkid} → 输出 WKID={output_wkid}"
-                        )
+                        warnings.append(f"⚠️ 坐标系变化: 输入 WKID={input_wkid} → 输出 WKID={output_wkid}")
 
-            # 范围对比
             if info.get("extent") and hasattr(input_desc, 'extent') and input_desc.extent:
                 inp_ext = input_desc.extent
                 out_ext = info["extent"]
@@ -244,7 +365,6 @@ try:
                     if tool_name not in params.get("extent_change_tools", set()):
                         warnings.append(f"⚠️ 空间范围变化异常（{ratio:.1f}倍），请检查结果是否正确")
 
-            # 要素数量对比
             if info.get("feature_count") is not None:
                 try:
                     input_count = int(arcpy.management.GetCount(input_path)[0])
@@ -253,9 +373,8 @@ try:
                 except Exception:
                     pass
         except Exception:
-            pass  # 输入数据检查失败不影响整体验证
+            pass
 
-    # 栅格验证
     if data_type in ('RasterDataset', 'RasterBand'):
         try:
             raster = arcpy.Raster(output_path)
@@ -271,6 +390,12 @@ except Exception as e:
 result = {"info": info, "warnings": warnings}
 print(json.dumps(result, ensure_ascii=False))
 '''
+
+
+def run_validation_arcpy(output_path: str, input_path: str, tool_name: str) -> dict:
+    """经 arcgispro-py3 子进程执行 arcpy 验证（GDAL 栈不可用时的兜底）。"""
+    from find_arcpy import run_arcpy_script
+
     input_data = {
         "output_path": output_path,
         "input_path": input_path,
@@ -280,25 +405,34 @@ print(json.dumps(result, ensure_ascii=False))
         "extent_threshold": CONFIG["extent_ratio_threshold"],
         "max_sample": CONFIG["max_sample_records"],
         "crs_change_tools": list(CRS_CHANGE_TOOLS),
-        "extent_change_tools": list(EXTENT_CHANGE_TOOLS)
+        "extent_change_tools": list(EXTENT_CHANGE_TOOLS),
     }
+    return run_arcpy_script(_ARCPY_VALIDATION_SCRIPT, input_data, timeout=120)
 
-    return run_arcpy_script(script, input_data, timeout=120)
+
+def run_validation(output_path: str, input_path: str, tool_name: str) -> dict:
+    """按可用性选择验证路径：GDAL 栈优先（快、跨平台），arcpy 兜底。"""
+    if _gdal_stack_available():
+        try:
+            return run_validation_gdal(output_path, input_path, tool_name)
+        except Exception as e:  # noqa: BLE001 —— GDAL 路径异常时降级，不直接失败
+            print(f"[result-validate] GDAL 验证异常，降级 arcpy: {e}", file=sys.stderr)
+    return run_validation_arcpy(output_path, input_path, tool_name)
 
 
 def format_validation_report(validation_result: dict, tool_name: str, output_path: str) -> str:
     """格式化验证报告为 Markdown"""
     if not validation_result["success"]:
-        return f"[result-validate] ArcPy 验证失败: {validation_result['error']}"
+        return f"[result-validate] 验证失败: {validation_result.get('error', '')}"
 
     result = validation_result["result"]
     if not isinstance(result, dict):
-        return f"[result-validate] 验证结果格式异常"
+        return "[result-validate] 验证结果格式异常"
 
     info = result.get("info", {})
     warnings = result.get("warnings", [])
 
-    lines = [f"### 结果验证报告 [{tool_name.split('.')[-1]}]"]
+    lines = [f"### 结果验证报告 [{tool_name.split('.')[-1].split(':')[-1]}]"]
     lines.append(f"- 输出: `{os.path.basename(output_path)}`")
     lines.append(f"- 类型: {info.get('data_type', '未知')}")
 
@@ -342,19 +476,14 @@ def main():
         if not output_path:
             sys.exit(0)  # 无输出路径，跳过验证
 
-        # 检查输出文件是否实际存在
-        if not os.path.exists(output_path):
-            # 可能是 GDB 内要素类，尝试 ArcPy 验证
-            pass
-
-        # 运行验证
+        # 运行验证（GDAL 优先 / arcpy 兜底）
         result = run_validation(output_path, input_path, gis_tool_name)
 
         # 格式化报告
         report = format_validation_report(result, gis_tool_name, output_path)
 
         # 严重警告时输出到 stderr
-        if result["success"] and isinstance(result["result"], dict):
+        if result["success"] and isinstance(result.get("result"), dict):
             warnings = result["result"].get("warnings", [])
             critical = [w for w in warnings if "🔴" in w]
             if critical:

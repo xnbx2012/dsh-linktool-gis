@@ -37,6 +37,15 @@ ARCPY_CONTENT_PATTERNS = [
 ]
 ARCPY_CONTENT_RE = re.compile('|'.join(ARCPY_CONTENT_PATTERNS), re.IGNORECASE)
 
+# 其余四个引擎的 CLI 直调特征（小写二进制形态，区分大小写以避免误伤文档叙述）
+ENGINE_CLI_CONTENT_RE = re.compile(
+    r'\bwhitebox_tools\b'
+    r'|import\s+whitebox'
+    r'|\bqgis_process\b'
+    r'|\bogr2ogr\b'
+    r'|\bgdal(?:info|translate|warp|contour|dem|grid|rasterize|polygonize|merge|buildvrt|addo|sieve|fillnodata|nearblack|transform)\b',
+)
+
 # Bash 中通过裸 python / uv run python -c / .bat / .sh 间接执行 arcpy 的特征
 BASH_ARCPY_RE = re.compile(
     r'(python[\w\.]*\s+.*-c.*(?:import\s+arcpy|from\s+arcpy|arcpy\.))'
@@ -86,11 +95,11 @@ def check_arcpy_bypass(tool_name: str, tool_input: dict, agent_name: str = None)
             content = tool_input.get('new_string', '')
         file_path = tool_input.get('file_path', '') or ''
 
-        # A1：任何 Agent 写含 arcpy 的内容 → 拦截（杜绝「委托智能体跑 arcpy」）
-        if isinstance(content, str) and ARCPY_CONTENT_RE.search(content):
+        # A1：任何 Agent 写含 arcpy / 其他引擎 CLI 直调的内容 → 拦截（杜绝「委托智能体跑 GIS」）
+        if isinstance(content, str) and (ARCPY_CONTENT_RE.search(content) or ENGINE_CLI_CONTENT_RE.search(content)):
             return True, (
-                f"内容含 arcpy 直接执行特征，禁止 Write/Edit。"
-                f"一切 arcpy 执行必须经 execute_gis_tool（由 @gis-tool 在 Workflow 契约内调用）。"
+                f"内容含 GIS 引擎（arcpy/Whitebox/QGIS/GDAL CLI）直接执行特征，禁止 Write/Edit。"
+                f"一切 GIS 执行必须经 execute_gis_tool（由 @gis-tool 在 Workflow 契约内调用）。"
                 f"片段: {content[:80]!r}"
             )
 
@@ -121,6 +130,12 @@ def check_arcpy_bypass(tool_name: str, tool_input: dict, agent_name: str = None)
                 return True, (
                     f"Bash 命令尝试直接执行 arcpy，禁止。"
                     f"提示: 一切 arcpy 执行必须经 execute_gis_tool。命令片段: {cmd[:80]!r}"
+                )
+            if ENGINE_CLI_CONTENT_RE.search(cmd):
+                return True, (
+                    f"Bash 命令尝试直接执行 GIS 引擎 CLI（Whitebox/QGIS/GDAL），禁止。"
+                    f"提示: 一切 GIS 执行必须经 execute_gis_tool（tool_name 前缀 wbt_/qgis_/gdal_ 可指定引擎）。"
+                    f"命令片段: {cmd[:80]!r}"
                 )
             if BASH_WRAPPER_RE.search(cmd):
                 return True, (

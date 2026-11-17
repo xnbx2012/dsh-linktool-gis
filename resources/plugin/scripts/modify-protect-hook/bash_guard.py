@@ -468,7 +468,7 @@ def extract_python_code_from_command(command: str) -> Optional[str]:
     return None
 
 def check_python_code_for_arcpy_and_exit(code: str) -> bool:
-    """检查Python代码是否包含arcpy导入"""
+    """检查Python代码是否包含arcpy或其他 GIS 引擎（Whitebox/QGIS/GDAL CLI）直调特征"""
     if not code or code.startswith("__FILE__:"):
         return True
 
@@ -478,6 +478,14 @@ def check_python_code_for_arcpy_and_exit(code: str) -> bool:
         r'import\s+arcpy\s+as',
         r'from\s+arcpy',
     ]
+    # 其余引擎小写二进制/导入形态（区分大小写，避免误伤文档叙述）
+    engine_patterns = [
+        r'import\s+whitebox',
+        r'\bwhitebox_tools\b',
+        r'\bqgis_process\b',
+        r'\bogr2ogr\b',
+        r'\bgdal(?:info|translate|warp|contour|dem|grid|rasterize|polygonize|merge|buildvrt)\b',
+    ]
 
     for pattern in arcpy_patterns:
         if re.search(pattern, code, re.IGNORECASE):
@@ -485,6 +493,15 @@ def check_python_code_for_arcpy_and_exit(code: str) -> bool:
                 f"Error: Python代码中检测到arcpy导入，直接执行arcpy存在安全隐患。\n"
                 f"提示: 请使用 arcgis-mcp-server 工具执行GIS操作。\n"
                 f"arcgis-mcp-server 提供 execute_gis_tool 工具，可安全执行 arcpy 工具并确保输出路径合规。",
+                file=sys.stderr
+            )
+            sys.exit(2)
+
+    for pattern in engine_patterns:
+        if re.search(pattern, code):
+            print(
+                f"Error: Python代码中检测到 GIS 引擎 CLI（Whitebox/QGIS/GDAL）直调特征。\n"
+                f"提示: 请使用 arcgis-mcp-server 的 execute_gis_tool（tool_name 前缀 wbt_/qgis_/gdal_ 可指定引擎）执行GIS操作。",
                 file=sys.stderr
             )
             sys.exit(2)

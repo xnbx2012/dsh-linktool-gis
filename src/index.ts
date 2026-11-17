@@ -5,6 +5,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import type {} from '@deepseek-ai/dsh-user-questions';
 import type { SessionId } from '@deepseek-ai/dsh-session';
 import type { Context } from '@deepseek-ai/cordis';
+// Types-only: pulls the loader's `loader/volatile-update` event augmentation
+// into cordis Events (erased at runtime; the loader itself is Host-owned).
+import type {} from '@deepseek-ai/cordis-plugin-loader';
 import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent';
 import type { SubagentRun, SubagentActivation, ResolvedSubagentStartRequest, SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
 import { renderSkillContent } from '@deepseek-ai/dsh-skill';
@@ -15,11 +18,16 @@ import { benchmarkPolicy, catalog, guardFields, packageRoot, resourceRoot, loadR
 import { textTool, registerTasks, registerResources, aliasDefinition, builtins, mcpTarget, mapArguments, toolAllowed, atomicJson } from './tools.js';
 import { registerWorkflow } from './workflow.js';
 import { switchesOf, type HookSwitch, type HookSwitches } from './guard.js';
+import { ENGINE_FIELDS, createEngineManager, engineStatus, writeEngineSwitches } from './engines.js';
 import z from '@deepseek-ai/schemastery';
 
 export const name = 'linktool-plugin';
 export const inject = ['tools', 'skills', 'systemPrompt', 'subagents', 'agents'];
-export interface Config { hooksEnabled?: boolean; mcpEnabled?: boolean; enabledServers?: string[]; hookGuard?: HookGuardConfig }
+export interface Config {
+  hooksEnabled?: boolean; mcpEnabled?: boolean; enabledServers?: string[]; hookGuard?: HookGuardConfig;
+  engineArcgis?: boolean; engineQgis?: boolean; engineWhitebox?: boolean; engineGdal?: boolean; engineInner?: boolean;
+  engineStatus?: string; engineDetectRequest?: number;
+}
 // Settings-page switch surface: every hookGuard field is volatile, so toggles
 // commit into the running fiber without remounting the plugin (hooks would
 // otherwise miss tool calls during the restart window).
@@ -40,6 +48,15 @@ export const Config = z.object({
   guardContextCompress: z.boolean().volatile().default(true).description('上下文压缩摘要：压缩后重新注入 GIS 操作历史'),
   guardAntiBypass: z.boolean().volatile().default(true).description('绕过防护：禁止经 Write/Edit/包装脚本产出 arcpy 执行'),
   guardSkillMd: z.boolean().volatile().default(true).description('SKILL.md 保护：禁止 Read 直读技能定义文件'),
+  // GIS 引擎分组：execute_gis_tool 的五引擎调度开关。MCP 侧经 .runtime/engine-switches.json
+  // 每次调用实时读取；探测状态由宿主回写 engineStatus（设置页显示可用性徽标）。
+  engineArcgis: z.boolean().volatile().default(false).description('ArcGIS Pro 引擎（arcpy_* 工具，Windows 专属；默认关闭）'),
+  engineQgis: z.boolean().volatile().default(true).description('QGIS 引擎（qgis_* 处理算法；环境不可用时自动关闭）'),
+  engineWhitebox: z.boolean().volatile().default(true).description('WhiteboxTools 引擎（wbt_* 工具）'),
+  engineGdal: z.boolean().volatile().default(true).description('GDAL 引擎（gdal_* 工具）'),
+  engineInner: z.boolean().volatile().default(true).description('内置引擎（buffer 等纯 Python 工具，零外部依赖）'),
+  engineStatus: z.string().volatile().default('').description('引擎可用性探测结果（JSON；由设置页刷新按钮更新）'),
+  engineDetectRequest: z.natural().volatile().default(0).description('引擎探测请求计数（刷新按钮递增触发重新探测）'),
 });
 interface AgentState { agent: AgentRecord; parent?: Agent; activeSkill?: SkillRecord; skillArgs?: string; steps: number; approved?: boolean; registrations: Map<string, () => void>; releaseRestriction?: () => void; preparingAliases?: boolean }
 interface McpConfig { type?: string; command?: string; args?: string[]; env?: Record<string, string>; cwd?: string; url?: string; headers?: Record<string, string> }
@@ -56,21 +73,22 @@ export function apply(ctx: Context, overrides: Config = {}): void {
   const initializedRoots = new WeakSet<Agent>();
   const rootSkills = new WeakMap<Agent, SkillRecord>();
   const identity = (agent?: Agent) => agent ? states.get(agent)?.agent.name ?? 'main' : '';
-  // Volatile guard* config writes commit into the running fiber: keep the
-  // resolved reference so the settings page flips hooks without an entry remount.
-  const liveGuard = overrides.hookGuard ?? config.hookGuard;
-  const liveSection = liveGuard && typeof (liveGuard as Record<string, unknown>).guardPathRestrict === 'object' && typeof (liveGuard as Record<string, unknown>).guardPathRestrict !== 'function' && typeof ((liveGuard as Record<string, unknown>).guardPathRestrict as { get?: unknown })?.get === 'function'
-    ? liveGuard as unknown as Record<string, unknown>
-    : undefined;
+  // Volatile config writes commit into the running fiber's flat field refs, so
+  // settings-page toggles apply to live hooks without an entry remount.
+  // runtime.json hookGuard stays the shipped fallback for non-DSH runtimes.
+  const readLiveSwitch = (field: string): boolean | undefined => {
+    const value = (overrides as Record<string, unknown>)[field];
+    if (value && typeof value === 'object' && typeof (value as { get?: unknown }).get === 'function') {
+      const resolved = (value as { get(): unknown }).get();
+      if (typeof resolved === 'boolean') return resolved;
+    }
+    if (typeof value === 'boolean') return value;
+    return undefined;
+  };
   const switches: HookSwitches = {
     get: (name: HookSwitch) => {
-      const field = guardFields[name];
-      const value = liveSection?.[field];
-      if (value && typeof value === 'object' && typeof (value as { get?: unknown }).get === 'function') {
-        const resolved = (value as { get(): unknown }).get();
-        if (typeof resolved === 'boolean') return resolved;
-      }
-      return switchesOf(config.hookGuard).get(name);
+      const live = readLiveSwitch(guardFields[name]);
+      return live === undefined ? switchesOf(config.hookGuard).get(name) : live;
     },
   };
   const hooks = new HookBridge(ctx, config, identity, agent => agent ? states.get(agent)?.activeSkill ?? rootSkills.get(agent) : undefined, { switches });
@@ -292,6 +310,26 @@ export function apply(ctx: Context, overrides: Config = {}): void {
   let refreshing = false;
   ctx.on('tools/change', () => { if (refreshing) return; refreshing = true; try { for (const agent of live) refresh(agent); } finally { refreshing = false; } });
   hooks.install();
+  // GIS 引擎管理：镜像五引擎开关到 .runtime/engine-switches.json（MCP 每次工具调用读取）；
+  // 设置页刷新按钮递增 engineDetectRequest → volatile 提交 → 此处触发探测 → 结果回写
+  // engineStatus 字段 → 客户端徽标经 settings/document-updated 自动刷新。
+  const engineOverrides = overrides as Record<string, unknown>;
+  writeEngineSwitches(engineOverrides);
+  const engines = createEngineManager(ctx, engineOverrides);
+  ctx.effect(() => () => engines.dispose(), 'linktool:engines');
+  ctx.on('loader/volatile-update', (paths: readonly (readonly string[])[]) => {
+    let switchesChanged = false;
+    let detectRequested = false;
+    for (const path of paths ?? []) {
+      const field = path?.[0];
+      if ((ENGINE_FIELDS as readonly string[]).includes(field)) switchesChanged = true;
+      if (field === 'engineDetectRequest') detectRequested = true;
+    }
+    if (switchesChanged) writeEngineSwitches(engineOverrides);
+    if (detectRequested) engines.requestDetection();
+  });
+  // 首次安装（尚无探测结果）：探测一次并按可用性自动关闭不可用引擎。
+  if (!engineStatus(engineOverrides)) engines.requestDetection();
   // A user slash invocation must honor the same independent-context contract.
   ctx.on('agent/pre-step', async ({ agent, messages, signal }, next) => {
     const forkMessages = messages.filter(m => { if (m.source.kind !== 'skill-invocation') return false; const invokedName = m.source.name; return catalog.skills.some(s => s.name === invokedName && s.context === 'fork'); });

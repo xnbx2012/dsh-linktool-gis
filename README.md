@@ -11,17 +11,29 @@ Harness Web 界面的 **设置 → LinkTool-GIS** 提供各 Hook 的单独开关
 | 开关 | 默认 | 作用 |
 |---|---|---|
 | 输出路径严格限制 | **关闭** | 开启后文件工具、Bash 与 GIS 输出仅允许 `01_DataBackup`（只读）/`02_WorkSpace`/`03_Result`。默认关闭：路径策略交由 Harness 自己的沙箱/权限体系控制，本插件不再另行限制。 |
-| MCP 执行限制 | **开启** | 拦截 GIS 类命令行/代码（arcpy、shapefile、.gdb 等）并引导改用 GIS MCP 执行。只匹配真正引用 GIS 执行的命令，普通命令行、代码、网络、构建操作零误拦。 |
+| MCP 执行限制 | **开启** | 拦截 GIS 类命令行/代码（arcpy、qgis_process、whitebox_tools、gdal/ogr CLI 等）并引导改用 GIS MCP 执行。只匹配真正引用 GIS 执行的命令，普通命令行、代码、网络、构建操作零误拦。 |
 | GIS 工具日志记录 | 开启 | 每次 `execute_gis_tool` 调用写入 `02_WorkSpace/gis-tool-logs.json`，供报告与复现。 |
-| 参数校验 | 开启 | 执行前对照 ArcPy 工具 schema 检查必填参数与输入路径。 |
-| 数据备份 | 开启 | 破坏性 GIS 工具操作 `01_DataBackup` 数据前自动备份并重定向。 |
-| 结果验证 | 开启 | GIS 输出属性空值率、要素数与几何一致性的自动检查。 |
+| 参数校验 | 开启 | 执行前对照各引擎 schema（arcpy 本地 schema + 五引擎运行时 schema）检查必填参数与类型。 |
+| 数据备份 | 开启 | 破坏性 GIS 工具操作 `01_DataBackup` 数据前自动备份并重定向（GDAL 栈进程内复制，~1s）。 |
+| 结果验证 | 开启 | GIS 输出属性空值率、要素数与几何一致性的自动检查（GDAL 栈进程内，~1s；无 GDAL 环境时降级 arcpy）。 |
 | 失败模式检测 | 开启 | 同一工具连续失败时提示停止重试并报告根因。 |
 | 上下文压缩摘要 | 开启 | 上下文压缩后重新注入 GIS 操作历史摘要。 |
 | 绕过防护 | 开启 | 禁止经 `.bat`/`.sh` 包装脚本绕过 GIS MCP（arcpy 内容拦截跟随「MCP 执行限制」开关）。 |
 | SKILL.md 保护 | 开启 | 禁止 Read 直读技能定义文件，改用 Skill 工具加载。 |
 
 除前两项外均为原插件 hooks 的原始行为开关；关闭某项即跳过对应 hook 的执行。**危险命令底线**（磁盘格式化、注册表写入、远程脚本管道等）不受任何开关影响，始终拦截。
+
+同一设置页还有 **GIS 引擎** 分组：五个执行引擎各自的启用开关（改动立即生效，无需重启）与可用状态徽标，以及「刷新检测」按钮。
+
+| 引擎 | tool_name 前缀 | 默认 | 说明 |
+|---|---|---|---|
+| 内置 Inner | `inner_` | 开启 | 纯 Python（geopandas/shapely/rasterio）进程内工具：buffer、project、spatial_join、band_math、字段计算等 22 个，零外部依赖，Linux 可用。 |
+| WhiteboxTools | `wbt_` | 开启 | 484 个地形/水文/激光雷达分析工具；首次调用自动下载 Rust 二进制。 |
+| GDAL | `gdal_` | 开启 | 59 个 gdal:* 直执行工具（进程内 rasterio/pyogrio + GDAL CLI 兜底）；查数据、查库等基础工具已内置实现，不依赖外部引擎。 |
+| QGIS | `qgis_` | 开启 | QGIS 处理算法（Windows 经 qgis_process 进程内运行时，Linux 经 PATH 上的 `qgis_process` CLI）。 |
+| ArcGIS Pro | `arcpy_` | **关闭** | arcpy 工具（Windows 专属，需本机安装 ArcGIS Pro）。需要时在设置页手动开启。 |
+
+裸 `tool_name`（不带前缀）按 内置 → Whitebox → GDAL → QGIS → ArcPy 顺序自动降级解析。引擎关闭后：降级链跳过该引擎；前缀强制指定已关闭引擎会明确报错。首次探测发现某引擎环境不可用时自动关闭对应开关；「刷新检测」按钮随时重测并回填状态徽标。引擎开关写入 `<packageRoot>/.runtime/engine-switches.json`，MCP 服务器每次工具调用实时读取。
 
 ## 0.1 凭据说明（公开仓库）
 
@@ -52,7 +64,7 @@ Harness Web 界面的 **设置 → LinkTool-GIS** 提供各 Hook 的单独开关
 - Python 3.12 或更高版本，以及 `uv`/`uvx`（推荐通过 uv 管理服务自己的环境）。
 - Git for Windows：原 Skill 命令使用 Bash 语法；Windows Harness 默认只有 PowerShell，本插件通过 Git Bash 适配这些命令。
 - 系统 `tar` 可用（Windows 10/11 通常自带）。安装脚本用它恢复完整源资源。
-- 实际 GIS 运算需要安装并授权 **ArcGIS Pro**，不能用普通 Python 替代 ArcPy。
+- GIS 引擎按需安装（设置页可逐个开关）：**ArcGIS Pro**（arcpy 引擎，默认关闭）需要授权安装；**QGIS** 安装后 qgis 引擎自动可用；**Whitebox/GDAL/内置** 引擎随 Python 依赖自动就绪，无需额外安装。不装任何外部 GIS 软件时，内置 + Whitebox + GDAL 三个引擎仍可完成大多数矢量/栅格分析。
 - Harness 需要配置自己的模型账户/API。MCP 的业务 API 凭据也是接收方自己的配置。
 
 可以用这些命令检查前置环境：
@@ -111,7 +123,7 @@ $env:ARCGIS_PRO_PATH = 'C:\Program Files\ArcGIS\Pro'
 
 **环境变量是必需的**：仓库内的 `config/mcp.json` 只含 `${ENV_VAR}` 占位符，未设置时对应凭据为空，相关 MCP 无法认证。
 
-`ARCGIS_PRO_PATH` 指向 **Pro 安装目录**，不是 `python.exe`。插件同时保留原有的自动查找逻辑。
+`ARCGIS_PRO_PATH` 指向 **Pro 安装目录**，不是 `python.exe`（仅 arcpy 引擎需要；未设置时插件保留原有的自动查找逻辑）。
 
 Git 不在默认位置时：
 
@@ -179,7 +191,7 @@ npm run check:mcp
 
 - `doctor` 检查前置工具和解析后的 MCP 路径；生成本机 `.runtime/resolved-mcp.json`（包含凭据，请不要分发）。
 - `check` 检查 TypeScript。
-- `verify` 校验 9527 个源文件 SHA-256 和全部提示词；在真实 Harness 中使用本地模拟模型检查 6 个角色、正文预加载、父会话隔离、Skill、启用 hooks 的资源读取/OfficeCLI 执行，以及 Workflow 缓存恢复与重试限制。不消耗模型 API。
+- `verify` 校验全部源文件 SHA-256（LF 行尾基准）和提示词正文哈希；并检查五引擎 guard 拦截矩阵、引擎开关的扁平 volatile 写入路径；在真实 Harness 中使用本地模拟模型检查 6 个角色、正文预加载、父会话隔离、Skill、启用 hooks 的资源读取/OfficeCLI 执行，以及 Workflow 缓存恢复与重试限制。不消耗模型 API。
 - `check:mcp` 真正连接 MCP 并列出工具，需要联网，首次可能下载 Python/npm 依赖；不执行 GIS 运算或收费图片操作。
 
 需要额外验证真实 Harness 中的 MCP 注册与 ArcPy 链路时，可运行下面的扩展检查。ArcPy 检查仅创建并处理 `.runtime` 下的独立测试数据，不处理你的业务数据：

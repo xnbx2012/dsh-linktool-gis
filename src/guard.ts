@@ -75,14 +75,18 @@ export function guardBashCommand(command: string, guard: HookGuardConfig, cwd: s
 }
 
 /**
- * GIS-command interception: route arcpy/code-execution attempts to the GIS MCP
- * server instead of ad-hoc shells. Only commands that actually reference GIS
- * execution are denied — plain file/text/network commands pass untouched, so
- * generic automation never trips this guard.
+ * GIS-command interception: route engine execution attempts (arcpy / QGIS /
+ * Whitebox / GDAL CLI) to the GIS MCP server instead of ad-hoc shells. Only
+ * commands that actually reference GIS execution are denied — plain
+ * file/text/network commands pass untouched, so generic automation never trips
+ * this guard.
  */
 export function guardArcpyCommand(command: string): string | undefined {
-  if (/arcpy|arcgis|\.gdb\b|\.shp\b|shapefile/i.test(command)) {
-    return '检测到通过命令行直接执行 GIS/ArcPy 操作。请改用 arcgis-mcp-server 的 execute_gis_tool MCP 工具执行该 GIS 操作，不要用 python -c、脚本包装等方式绕过 MCP。';
+  // arcpy/arcgis + GIS 数据形态；再叠加其余四个引擎的 CLI 直调特征
+  // （qgis_process、whitebox_tools、gdal*/ogr* 二进制、inner_ 引擎前缀）。
+  const engineCli = /\bqgis_process\b|\bwhitebox_tools?\b|\bgdal[a-z_]*\b|\bogr[a-z0-9_]*\b|\binner_\w+\b|\bwbt_\w+\b/i;
+  if (/arcpy|arcgis|\.gdb\b|\.shp\b|shapefile/i.test(command) || engineCli.test(command)) {
+    return '检测到通过命令行直接执行 GIS/ArcPy/QGIS/Whitebox/GDAL 操作。请改用 arcgis-mcp-server 的 execute_gis_tool MCP 工具执行该 GIS 操作（tool_name 前缀 inner_/wbt_/gdal_/qgis_/arcpy_ 可指定引擎），不要用 python -c、脚本包装等方式绕过 MCP。';
   }
   return undefined;
 }
@@ -95,16 +99,20 @@ export function guardWrapperCommand(command: string): string | undefined {
 }
 
 /**
- * Write/Edit content floor (anti-bypass.py Rule A). arcpy content belongs to
- * the MCP restriction switch; the generic exec-smell check in executable
- * scripts stays with the bypass switch.
+ * Write/Edit content floor (anti-bypass.py Rule A). arcpy/other-engine content
+ * belongs to the MCP restriction switch; the generic exec-smell check in
+ * executable scripts stays with the bypass switch.
+ *
+ * arcpy 模式不区分大小写；其余引擎按小写二进制调用形态匹配（区分大小写），
+ * 避免把「文档里提到 GDAL/Whitebox」误判为执行特征。
  */
 export function guardWritableContent(toolName: string, args: Record<string, unknown>, mcpRestrict: boolean): string | undefined {
   if (!['Write', 'write', 'Edit', 'edit', 'Update'].includes(toolName)) return undefined;
   const content = args.content ?? args.new_string;
   if (typeof content !== 'string' || !content) return undefined;
-  if (mcpRestrict && /import\s+arcpy|from\s+arcpy|arcpy\./i.test(content)) {
-    return '写入内容含 arcpy 直接执行特征，禁止 Write/Edit。一切 arcpy 执行必须经 execute_gis_tool（由 @gis-tool 在 Workflow 契约内调用）。';
+  if (mcpRestrict && (/import\s+arcpy|from\s+arcpy|arcpy\./i.test(content)
+    || /\bwhitebox_tools\b|import\s+whitebox|\bqgis_process\b|\bogr2ogr\b|\bgdal(?:info|translate|warp|contour|dem|grid|rasterize|polygonize|merge|buildvrt|addo|sieve|fillnodata|nearblack|transform)\b/.test(content))) {
+    return '写入内容含 GIS 引擎（arcpy/Whitebox/QGIS/GDAL CLI）直接执行特征，禁止 Write/Edit。一切 GIS 执行必须经 execute_gis_tool（由 @gis-tool 在 Workflow 契约内调用）。';
   }
   return undefined;
 }

@@ -17,21 +17,21 @@
 
 ## 功能
 
-1. **破坏性工具识别**：通过工具名和参数判断是否为原地修改工具
+1. **破坏性工具识别**：通过工具名和参数判断是否为原地修改工具（覆盖 arcpy 与内置引擎 `add_field`/`calculate_field` 等）
 2. **自动数据备份**：检测到操作 `01_DataBackup` 中的数据时，自动复制到 `02_WorkSpace`
 3. **参数自动重定向**：通过 `updatedInput` 将工具参数中的路径从只读目录重定向到副本
 
+## 复制实现路径（按可用性降级）
+
+1. **进程内 GDAL 栈**（`shared/gis_io.py`，hooks.json 经 `--with-requirements gdal-requirements.txt` 注入依赖）：~1s，五引擎通用，Linux 可用。整库 copytree；shapefile 连同 sidecar（.shx/.dbf/.prj/...）复制；GDB 要素类经 GeoDataFrame 转写。
+2. **arcpy 子进程**（`shared/find_arcpy.py`）：GDAL 栈不可用时的 Windows 兜底，5-15s。
+
 ## 破坏性工具判断逻辑
 
-- 无 `out_*` 输出参数的工具 → 可能是破坏性工具
+- 无输出参数（`out_*`/`output_*`/五引擎统一键 `output`/`OUTPUT`）的工具 → 可能是破坏性工具
 - 已知破坏性工具列表：`CalculateField`, `AddField`, `DeleteField`, `DeleteFeatures` 等
-- `arcpy.edit.*` 模块下的所有工具
+- `arcpy.edit.*` 模块下的所有工具；内置引擎的 `add_field`/`alter_field`/`calculate_field`/`delete_field`/`calculate_statistics`
 - 有输出路径参数的工具视为安全（创建新数据）
-
-## 依赖
-
-- `shared/find_arcpy.py`：ArcPy 解释器定位（仅在需要复制时调用）
-- ArcPy 调用延迟：~5-15s（仅在破坏性操作 + 只读数据时触发）
 
 ## 退出码
 

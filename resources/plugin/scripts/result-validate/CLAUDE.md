@@ -34,8 +34,8 @@
 
 ## 依赖
 
-- `shared/find_arcpy.py`：ArcPy 解释器定位
-- ArcPy 调用延迟：~5-15s（每次 execute_gis_tool 都会触发）
+- **进程内 GDAL 栈**（优先）：`shared/gis_io.py` 的 `data_properties`/`query_attributes`；hooks.json 经 `--with-requirements gdal-requirements.txt` 注入 pyogrio/geopandas/rasterio。~1s，五引擎输出通用，Linux 可用。
+- **arcpy 子进程**（兜底）：`shared/find_arcpy.py`；GDAL 栈不可用时降级（Windows，5-15s）。
 
 ## 验证阈值（config.json）
 

@@ -8,14 +8,19 @@
 - 通过 updatedInput 修改工具参数，将路径从 01_DataBackup 重定向到 02_WorkSpace
 - Claude 无需介入，工具自动在副本上执行
 
+复制实现路径（按可用性降级）：
+1. 进程内 GDAL 栈（pyogrio/geopandas/rasterio，经 shared/gis_io.py）——约 1s，
+   五引擎输出通用，Linux 可用；shp/栅格纯文件复制，GDB 要素类经 GeoDataFrame 转写。
+2. arcpy 子进程（shared/find_arcpy.py）——GDAL 栈不可用时的 Windows 兜底，5-15s。
+
 退出码：0=放行（含 updatedInput 修改）, 2=阻止（备份失败时）, 1=内部错误
 """
 
 import json
+import shutil
 import sys
 import os
 import io
-import subprocess
 
 # 强制 UTF-8
 sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8', errors='replace')
@@ -24,7 +29,6 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='repla
 
 # 添加共享模块路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
-from find_arcpy import run_arcpy_script
 
 # 已知破坏性工具列表（原地修改输入数据，无输出路径参数）
 DESTRUCTIVE_TOOLS = {
@@ -50,6 +54,11 @@ DESTRUCTIVE_PREFIXES = [
     "arcpy.management.Repair",
     "arcpy.management.Rebuild",
 ]
+
+# 内置引擎（inner_* 或裸名自动解析）中会原地修改数据的工具
+INNER_DESTRUCTIVE_TOOLS = {
+    'add_field', 'alter_field', 'calculate_field', 'delete_field', 'calculate_statistics',
+}
 
 # 安全工具的输出参数关键字（有输出路径 = 安全，创建新数据）
 # 覆盖 out_* 和 output_* 两种前缀的常见路径类输出参数
@@ -82,6 +91,8 @@ OUTPUT_PARAM_KEYWORDS = {
     'output_trained_raster', 'output_trained_features',
     'output_routes_name', 'output_stops_name', 'output_directions_name',
     'output_simulation_prefix',
+    # 五引擎统一输出键（inner/gdal/wbt 用 output，QGIS 用大写 OUTPUT）
+    'output', 'outputs',
 }
 
 # 非路径的 out_* 参数（值是枚举/类型/范围等，不是文件路径）
@@ -103,12 +114,18 @@ NON_PATH_OUTPUT_PARAMS = {
 
 
 def is_destructive(tool_name: str) -> bool:
-    """判断工具是否为破坏性工具"""
+    """判断工具是否为破坏性工具（覆盖 arcpy 与内置引擎两种命名形态）"""
     if tool_name in DESTRUCTIVE_TOOLS:
         return True
     for prefix in DESTRUCTIVE_PREFIXES:
         if tool_name.startswith(prefix):
             return True
+    # 内置引擎：inner_xxx 前缀强制，或裸名（裸名在降级链中最先命中 inner）
+    n = tool_name.strip().lower().replace('-', '_')
+    if n.startswith('inner_'):
+        n = n[len('inner_'):]
+    if n in INNER_DESTRUCTIVE_TOOLS:
+        return True
     return False
 
 
@@ -159,24 +176,72 @@ def find_input_data_in_readonly(parameters: dict, cwd: str) -> list[tuple[str, s
     return results
 
 
-def copy_data_to_workspace(src_path: str, cwd: str) -> str | None:
-    """
-    将数据从 01_DataBackup 复制到 02_WorkSpace。
-    返回目标路径，失败返回 None。
-    """
-    # 计算目标路径
+def _resolve_backup_dest(src_path: str, cwd: str) -> str:
+    """计算 02_WorkSpace 内的副本目标路径（保持相对目录结构）。"""
     src_norm = src_path.replace("\\", "/")
     cwd_norm = cwd.replace("\\", "/")
     relative = src_norm[len(cwd_norm):].lstrip("/")
-    dest_path = os.path.join(cwd, "02_WorkSpace", relative).replace("\\", "/")
+    return os.path.join(cwd, "02_WorkSpace", relative).replace("\\", "/")
 
-    # 确保目标目录存在
-    dest_dir = os.path.dirname(dest_path)
-    if not os.path.exists(dest_dir):
-        os.makedirs(dest_dir, exist_ok=True)
 
-    # 通过 ArcPy 复制（始终覆盖，确保副本与源一致）
-    script = '''
+# ─── 路径 1：进程内 GDAL 栈复制（五引擎通用，~1s） ─────────────────────────────
+def _gdal_available() -> bool:
+    try:
+        import pyogrio  # noqa: F401
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+_SHAPEFILE_SIDECARS = ('.shx', '.dbf', '.prj', '.cpg', '.sbn', '.sbz', '.shp.xml', '.qix')
+
+
+def copy_data_gdal(src_path: str, dest_path: str) -> tuple[bool, str]:
+    """经 pyogrio/geopandas/rasterio + shutil 复制。返回 (success, error)。"""
+    from gis_io import repair_proj_env, _split_path
+
+    repair_proj_env()
+    src_norm = src_path.replace("\\", "/")
+    dest_norm = dest_path.replace("\\", "/")
+    src_low = src_norm.lower()
+
+    # 整库 .gdb / 任意目录：直接 copytree（覆盖已存在的目标）
+    if os.path.isdir(src_norm):
+        if os.path.isdir(dest_norm):
+            shutil.rmtree(dest_norm, ignore_errors=True)
+        shutil.copytree(src_norm, dest_norm, dirs_exist_ok=True)
+        return True, ""
+
+    # GDB 内要素类：GeoDataFrame 转写到目标 GDB（自动建库；目标同为 gdb/layer 形态）
+    datasource, layer = _split_path(src_norm)
+    if layer is not None and src_low.find('.gdb/') >= 0:
+        import geopandas as gpd
+
+        dest_gdb, dest_layer = _split_path(dest_norm)
+        if os.path.isdir(dest_gdb):
+            shutil.rmtree(dest_gdb, ignore_errors=True)
+        os.makedirs(os.path.dirname(dest_gdb), exist_ok=True)
+        gdf = gpd.read_file(datasource, layer=layer)
+        gdf.to_file(dest_gdb, layer=dest_layer or layer, driver="OpenFileGDB")
+        return True, ""
+
+    # shapefile：连同 sidecar（.shx/.dbf/.prj/...）一起复制
+    if src_low.endswith('.shp'):
+        os.makedirs(os.path.dirname(dest_norm), exist_ok=True)
+        base_src, base_dest = src_norm[:-4], dest_norm[:-4]
+        for ext in _SHAPEFILE_SIDECARS:
+            if os.path.isfile(base_src + ext):
+                shutil.copy2(base_src + ext, base_dest + ext)
+        return True, ""
+
+    # 其余单文件（.tif/.csv/.json 等）：直接复制
+    os.makedirs(os.path.dirname(dest_norm), exist_ok=True)
+    shutil.copy2(src_norm, dest_norm)
+    return True, ""
+
+
+# ─── 路径 2：arcpy 子进程复制（Windows 兜底） ──────────────────────────────────
+_ARCPY_COPY_SCRIPT = '''
 import arcpy
 import json
 import sys
@@ -208,13 +273,45 @@ try:
 except Exception as e:
     print(json.dumps({"success": False, "error": str(e)}))
 '''
-    result = run_arcpy_script(script, {"src": src_path, "dest": dest_path}, timeout=120)
+
+
+def copy_data_arcpy(src_path: str, dest_path: str) -> tuple[bool, str]:
+    """经 arcgispro-py3 子进程复制（GDAL 栈不可用时的兜底）。"""
+    from find_arcpy import run_arcpy_script
+
+    result = run_arcpy_script(_ARCPY_COPY_SCRIPT, {"src": src_path, "dest": dest_path}, timeout=120)
     if result["success"] and isinstance(result["result"], dict) and result["result"].get("success"):
+        return True, ""
+    error = result.get("error", "") or (result["result"].get("error", "") if isinstance(result.get("result"), dict) else "")
+    return False, error
+
+
+def copy_data_to_workspace(src_path: str, cwd: str) -> str | None:
+    """
+    将数据从 01_DataBackup 复制到 02_WorkSpace（GDAL 优先 / arcpy 兜底）。
+    返回目标路径，失败返回 None。
+    """
+    dest_path = _resolve_backup_dest(src_path, cwd)
+
+    # 确保目标目录存在
+    dest_dir = os.path.dirname(dest_path)
+    if not os.path.exists(dest_dir):
+        os.makedirs(dest_dir, exist_ok=True)
+
+    if _gdal_available():
+        try:
+            ok, error = copy_data_gdal(src_path, dest_path)
+            if ok:
+                return dest_path
+            print(f"[data-backup] GDAL 复制失败（降级 arcpy）: {src_path} → {dest_path}: {error}", file=sys.stderr)
+        except Exception as e:  # noqa: BLE001
+            print(f"[data-backup] GDAL 复制异常（降级 arcpy）: {e}", file=sys.stderr)
+
+    ok, error = copy_data_arcpy(src_path, dest_path)
+    if ok:
         return dest_path
-    else:
-        error = result.get("error", "") or (result["result"].get("error", "") if isinstance(result.get("result"), dict) else "")
-        print(f"[data-backup] 复制失败: {src_path} → {dest_path}: {error}", file=sys.stderr)
-        return None
+    print(f"[data-backup] 复制失败: {src_path} → {dest_path}: {error}", file=sys.stderr)
+    return None
 
 
 def main():

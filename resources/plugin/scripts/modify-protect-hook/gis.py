@@ -250,6 +250,9 @@ def _combine_out_location_and_name(parameters: dict) -> List[Tuple[str, str]]:
     # 常见"目录"参数名（与 out_name / out_file 组合）
     location_keys = {'out_location', 'out_workspace', 'out_folder', 'out_folder_path', 'output_workspace', 'workspace'}
 
+    # 五引擎统一输出键：inner/gdal/wbt 用 output，QGIS 用大写 OUTPUT 或 *_OUTPUT 后缀
+    ENGINE_OUTPUT_KEYS = {'output', 'outputs', 'sink', 'destination'}
+
     # 明确不是路径的 out_* / output_* 参数（值是枚举/类型/范围等非路径内容）
     NON_PATH_OUT_PARAMS = {
         'out_coor_system', 'out_spatial_reference', 'out_extent',
@@ -299,6 +302,8 @@ def _combine_out_location_and_name(parameters: dict) -> List[Tuple[str, str]]:
             continue
 
         is_output_param = any(kw in key_lower for kw in output_keywords)
+        # 五引擎（inner/wbt/gdal/qgis）的输出键形态：output / outputs / sink / destination / *_output
+        is_engine_output = key_lower in ENGINE_OUTPUT_KEYS or key_lower.endswith('_output') or key_lower.endswith('_outputs')
 
         # 排除已知的非路径 out_* 参数（如坐标系WKT、空间范围、统计配置等）
         is_excluded_out_param = key_lower in NON_PATH_OUT_PARAMS
@@ -306,7 +311,7 @@ def _combine_out_location_and_name(parameters: dict) -> List[Tuple[str, str]]:
         if is_excluded_out_param:
             continue
 
-        if key_lower.startswith('out_') or key_lower.startswith('output_') or is_output_param:
+        if key_lower.startswith('out_') or key_lower.startswith('output_') or is_output_param or is_engine_output:
             if not is_only_filename(value):
                 output_paths.append((key, value))
 
