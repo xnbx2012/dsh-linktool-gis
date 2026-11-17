@@ -11,7 +11,7 @@ import { renderSkillContent } from '@deepseek-ai/dsh-skill';
 import { resolvedServers } from './mcp.js';
 import * as McpClient from '@deepseek-ai/dsh-mcp-client';
 import { HookBridge } from './hooks.js';
-import { benchmarkPolicy, catalog, packageRoot, resourceRoot, loadRuntime, readJson, body, getAgent, getSkill, agentName, skillAllowed, skillProvider, definition, workspace, inside, type AgentRecord, type SkillRecord, type RuntimeConfig, type HookGuardConfig } from './catalog.js';
+import { benchmarkPolicy, catalog, guardFields, packageRoot, resourceRoot, loadRuntime, readJson, body, getAgent, getSkill, agentName, skillAllowed, skillProvider, definition, workspace, inside, type AgentRecord, type SkillRecord, type RuntimeConfig, type HookGuardConfig } from './catalog.js';
 import { textTool, registerTasks, registerResources, aliasDefinition, builtins, mcpTarget, mapArguments, toolAllowed, atomicJson } from './tools.js';
 import { registerWorkflow } from './workflow.js';
 import { switchesOf, type HookSwitch, type HookSwitches } from './guard.js';
@@ -27,18 +27,19 @@ export const Config = z.object({
   hooksEnabled: z.boolean().volatile().default(true),
   mcpEnabled: z.boolean().default(true),
   enabledServers: z.array(z.string()).default([]),
-  hookGuard: z.object({
-    pathRestrict: z.boolean().volatile().default(false).description('输出路径严格限制：仅允许 01_DataBackup（只读）/02_WorkSpace/03_Result'),
-    mcpRestrict: z.boolean().volatile().default(true).description('MCP 执行限制：拦截 GIS 类命令行/代码并引导使用 GIS MCP'),
-    gisToolLog: z.boolean().volatile().default(true).description('GIS 工具日志：记录每次 execute_gis_tool 调用'),
-    paramValidate: z.boolean().volatile().default(true).description('参数校验：execute_gis_tool 必填参数与输入路径预检'),
-    dataBackup: z.boolean().volatile().default(true).description('数据备份：破坏性 GIS 工具执行前自动备份只读数据'),
-    resultValidate: z.boolean().volatile().default(true).description('结果验证：GIS 输出的属性/几何自动检查'),
-    failurePattern: z.boolean().volatile().default(true).description('失败模式检测：连续失败时建议停止重试'),
-    contextCompress: z.boolean().volatile().default(true).description('上下文压缩摘要：压缩后重新注入 GIS 操作历史'),
-    antiBypass: z.boolean().volatile().default(true).description('绕过防护：禁止经 Write/Edit/包装脚本产出 arcpy 执行'),
-    skillMdGuard: z.boolean().volatile().default(true).description('SKILL.md 保护：禁止 Read 直读技能定义文件'),
-  }),
+  // Flat top-level switches: settings-path writes address one schema dict key
+  // per segment, and ConfigForm.set sends single-segment paths, so every
+  // toggle must live at the namespace root (matches the official pages).
+  guardPathRestrict: z.boolean().volatile().default(false).description('输出路径严格限制：仅允许 01_DataBackup（只读）/02_WorkSpace/03_Result'),
+  guardMcpRestrict: z.boolean().volatile().default(true).description('MCP 执行限制：拦截 GIS 类命令行/代码并引导使用 GIS MCP'),
+  guardGisToolLog: z.boolean().volatile().default(true).description('GIS 工具日志：记录每次 execute_gis_tool 调用'),
+  guardParamValidate: z.boolean().volatile().default(true).description('参数校验：execute_gis_tool 必填参数与输入路径预检'),
+  guardDataBackup: z.boolean().volatile().default(true).description('数据备份：破坏性 GIS 工具执行前自动备份只读数据'),
+  guardResultValidate: z.boolean().volatile().default(true).description('结果验证：GIS 输出的属性/几何自动检查'),
+  guardFailurePattern: z.boolean().volatile().default(true).description('失败模式检测：连续失败时建议停止重试'),
+  guardContextCompress: z.boolean().volatile().default(true).description('上下文压缩摘要：压缩后重新注入 GIS 操作历史'),
+  guardAntiBypass: z.boolean().volatile().default(true).description('绕过防护：禁止经 Write/Edit/包装脚本产出 arcpy 执行'),
+  guardSkillMd: z.boolean().volatile().default(true).description('SKILL.md 保护：禁止 Read 直读技能定义文件'),
 });
 interface AgentState { agent: AgentRecord; parent?: Agent; activeSkill?: SkillRecord; skillArgs?: string; steps: number; approved?: boolean; registrations: Map<string, () => void>; releaseRestriction?: () => void; preparingAliases?: boolean }
 interface McpConfig { type?: string; command?: string; args?: string[]; env?: Record<string, string>; cwd?: string; url?: string; headers?: Record<string, string> }
@@ -55,17 +56,19 @@ export function apply(ctx: Context, overrides: Config = {}): void {
   const initializedRoots = new WeakSet<Agent>();
   const rootSkills = new WeakMap<Agent, SkillRecord>();
   const identity = (agent?: Agent) => agent ? states.get(agent)?.agent.name ?? 'main' : '';
-  // Volatile hookGuard writes commit into the running fiber: keep the resolved
-  // reference so the settings page flips hooks without an entry remount.
+  // Volatile guard* config writes commit into the running fiber: keep the
+  // resolved reference so the settings page flips hooks without an entry remount.
   const liveGuard = overrides.hookGuard ?? config.hookGuard;
-  const guardRef = (liveGuard as unknown as { pathRestrict?: { get?(): unknown } })?.pathRestrict?.get ? liveGuard : { ...(liveGuard ?? {}) };
+  const liveSection = liveGuard && typeof (liveGuard as Record<string, unknown>).guardPathRestrict === 'object' && typeof (liveGuard as Record<string, unknown>).guardPathRestrict !== 'function' && typeof ((liveGuard as Record<string, unknown>).guardPathRestrict as { get?: unknown })?.get === 'function'
+    ? liveGuard as unknown as Record<string, unknown>
+    : undefined;
   const switches: HookSwitches = {
     get: (name: HookSwitch) => {
-      const section = guardRef as Record<string, unknown>;
-      const value = section[name];
+      const field = guardFields[name];
+      const value = liveSection?.[field];
       if (value && typeof value === 'object' && typeof (value as { get?: unknown }).get === 'function') {
         const resolved = (value as { get(): unknown }).get();
-        return typeof resolved === 'boolean' ? resolved : switchesOf(config.hookGuard).get(name);
+        if (typeof resolved === 'boolean') return resolved;
       }
       return switchesOf(config.hookGuard).get(name);
     },

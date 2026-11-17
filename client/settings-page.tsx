@@ -81,17 +81,20 @@ const en = {
 };
 
 interface RowSpec { field: string; labelKey: string; hintKey: string; order: number }
+// Flat Config field per switch: settings writes address one schema dict key per
+// segment and ConfigForm.set sends single-segment paths, so every toggle lives
+// at the namespace root.
 const ROWS: RowSpec[] = [
-  { field: 'hookGuard.pathRestrict', labelKey: 'pathRestrict', hintKey: 'pathRestrictHint', order: 10 },
-  { field: 'hookGuard.mcpRestrict', labelKey: 'mcpRestrict', hintKey: 'mcpRestrictHint', order: 20 },
-  { field: 'hookGuard.gisToolLog', labelKey: 'gisToolLog', hintKey: 'gisToolLogHint', order: 30 },
-  { field: 'hookGuard.paramValidate', labelKey: 'paramValidate', hintKey: 'paramValidateHint', order: 40 },
-  { field: 'hookGuard.dataBackup', labelKey: 'dataBackup', hintKey: 'dataBackupHint', order: 50 },
-  { field: 'hookGuard.resultValidate', labelKey: 'resultValidate', hintKey: 'resultValidateHint', order: 60 },
-  { field: 'hookGuard.failurePattern', labelKey: 'failurePattern', hintKey: 'failurePatternHint', order: 70 },
-  { field: 'hookGuard.contextCompress', labelKey: 'contextCompress', hintKey: 'contextCompressHint', order: 80 },
-  { field: 'hookGuard.antiBypass', labelKey: 'antiBypass', hintKey: 'antiBypassHint', order: 90 },
-  { field: 'hookGuard.skillMdGuard', labelKey: 'skillMdGuard', hintKey: 'skillMdGuardHint', order: 100 },
+  { field: 'guardPathRestrict', labelKey: 'pathRestrict', hintKey: 'pathRestrictHint', order: 10 },
+  { field: 'guardMcpRestrict', labelKey: 'mcpRestrict', hintKey: 'mcpRestrictHint', order: 20 },
+  { field: 'guardGisToolLog', labelKey: 'gisToolLog', hintKey: 'gisToolLogHint', order: 30 },
+  { field: 'guardParamValidate', labelKey: 'paramValidate', hintKey: 'paramValidateHint', order: 40 },
+  { field: 'guardDataBackup', labelKey: 'dataBackup', hintKey: 'dataBackupHint', order: 50 },
+  { field: 'guardResultValidate', labelKey: 'resultValidate', hintKey: 'resultValidateHint', order: 60 },
+  { field: 'guardFailurePattern', labelKey: 'failurePattern', hintKey: 'failurePatternHint', order: 70 },
+  { field: 'guardContextCompress', labelKey: 'contextCompress', hintKey: 'contextCompressHint', order: 80 },
+  { field: 'guardAntiBypass', labelKey: 'antiBypass', hintKey: 'antiBypassHint', order: 90 },
+  { field: 'guardSkillMd', labelKey: 'skillMdGuard', hintKey: 'skillMdGuardHint', order: 100 },
 ];
 
 /** Required services (cordis fiber inject) — official client plugins declare these so
@@ -129,14 +132,14 @@ export function apply(ctx: any): void {
     const primitives = require('@deepseek-ai/dsh-client-ui-primitives');
     const [, setBusy] = busy;
     const [, setFailed] = failed;
-    const field = spec.field.split('.')[1];
+    const field = spec.field; // flat Config key, e.g. guardPathRestrict
     const checked = snapshot.status === 'ready'
       ? Boolean((snapshot.value as Record<string, unknown> | undefined)?.[field])
-      : field === 'pathRestrict'; // shipped default while loading
+      : field === 'guardPathRestrict'; // shipped default while loading
     const disabled = !snapshot.writable || busy[0];
     const onToggle = async (next: boolean) => {
       setBusy(true); setFailed(false);
-      try { if (!await form.set('hookGuard.' + field, next)) setFailed(true); }
+      try { if (!await form.set(field, next)) setFailed(true); }
       catch { setFailed(true); }
       finally { setBusy(false); }
     };

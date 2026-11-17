@@ -20,7 +20,11 @@ export interface RuntimeConfig {
   /** Settings-page switchable hooks; every runtime.json absent field means the shipped default. */
   hookGuard?: HookGuardConfig;
 }
-/** Per-hook switches exposed on the LinkTool-GIS settings tab. */
+/**
+ * Per-hook switches exposed on the LinkTool-GIS settings tab. Keys are flat
+ * (`guard*` config fields) because settings writes address one schema dict key
+ * per segment; the runtime guard keys stay short.
+ */
 export interface HookGuardConfig {
   /** Strict 01_DataBackup/02_WorkSpace/03_Result path limitation (bundled Python hooks). Default off — dsh owns path policy. */
   pathRestrict?: boolean;
@@ -43,7 +47,13 @@ export interface HookGuardConfig {
   /** Forbid reading SKILL.md directly through Read; load via Skill instead. Default on. */
   skillMdGuard?: boolean;
 }
-export const catalog: { name: string; version: string; agents: AgentRecord[]; skills: SkillRecord[]; workflows: string[] } = JSON.parse(readFileSync(join(packageRoot, 'config', 'catalog.json'), 'utf8'));
+/** Flat Config field per hook switch (settings-page wire form ↔ runtime key). Keys must match src/index.ts Config exactly. */
+export const guardFields: Record<keyof HookGuardConfig, string> = {
+  pathRestrict: 'guardPathRestrict', mcpRestrict: 'guardMcpRestrict', gisToolLog: 'guardGisToolLog',
+  paramValidate: 'guardParamValidate', dataBackup: 'guardDataBackup', resultValidate: 'guardResultValidate',
+  failurePattern: 'guardFailurePattern', contextCompress: 'guardContextCompress', antiBypass: 'guardAntiBypass',
+  skillMdGuard: 'guardSkillMd',
+};export const catalog: { name: string; version: string; agents: AgentRecord[]; skills: SkillRecord[]; workflows: string[] } = JSON.parse(readFileSync(join(packageRoot, 'config', 'catalog.json'), 'utf8'));
 export const readJson = <T>(path: string): T => JSON.parse(readFileSync(path, 'utf8'));
 export function loadRuntime(): RuntimeConfig { return readJson(join(packageRoot, 'config', 'runtime.json')); }
 export function body(doc: Document): string {

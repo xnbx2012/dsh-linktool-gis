@@ -88,19 +88,25 @@ console.log('PASS PostToolUse 失败记录与 PostCompact 原脚本摘要');
   assert(hookSwitchOf('modify-protect-hook/main.py') === 'pathRestrict', 'path hook mapping');
   console.log('PASS PreToolUse 适配层 guard 随开关生效');
 }
-// ─── 宿主侧 Config schema（volatile 开关）───
+// ─── 宿主侧 Config schema（volatile 开关，扁平字段）───
 {
   const { Config } = await import('../lib/index.js');
   assert(Config && typeof Config.toJSON === 'function', 'Config schema exported for settings UI');
   const json = Config.toJSON();
   const ref = (node) => (node && typeof node === 'number' ? json.refs[node] : node);
   const root = ref(json.refs[json.uid] ?? json);
-  const hookGuard = ref(root.dict?.hookGuard);
-  assert(hookGuard?.dict?.pathRestrict !== undefined && ref(hookGuard.dict.pathRestrict)?.meta?.volatile, 'hookGuard.pathRestrict declared as a volatile leaf');
+  // Settings writes address one schema dict key per segment and
+  // ConfigForm.set sends single-segment paths, so every switch must be a flat
+  // top-level volatile field (the exact bug behind "开关写入失败").
+  function isVolatilePath(schema, path) { if (schema.meta?.volatile) return true; const [key, ...rest] = path; const child = key === undefined ? undefined : schema.dict?.[key]; return child !== undefined && isVolatilePath(ref(child), rest); }
+  for (const field of ['guardPathRestrict', 'guardMcpRestrict', 'guardGisToolLog', 'guardParamValidate', 'guardDataBackup', 'guardResultValidate', 'guardFailurePattern', 'guardContextCompress', 'guardAntiBypass', 'guardSkillMd']) {
+    assert(root.dict?.[field] !== undefined, field + ' declared at the namespace root');
+    assert(isVolatilePath(Config, [field]), field + ' accepts the single-segment settings write path');
+  }
   const resolved = Config({});
-  assert.equal(resolved.hookGuard.pathRestrict.get(), false, 'pathRestrict resolved default off');
-  assert.equal(resolved.hookGuard.mcpRestrict.get(), true, 'mcpRestrict resolved default on');
-  console.log('PASS Config schema：volatile hookGuard 开关可被设置页编辑');
+  assert.equal(resolved.guardPathRestrict.get(), false, 'pathRestrict resolved default off');
+  assert.equal(resolved.guardMcpRestrict.get(), true, 'mcpRestrict resolved default on');
+  console.log('PASS Config schema：扁平 volatile 开关接受设置页单段写入路径');
 }
 const patch = join(packageRoot, '.runtime', 'runtime-check.yml'); mkdirSync(join(packageRoot,'.runtime'), {recursive:true});
 writeFileSync(patch, `- id: headless-startup\n  disabled: true\n- id: headless-runner\n  disabled: true\n- insert:\n  - id: linktool-plugin\n    name: ${JSON.stringify(join(packageRoot, 'lib/index.js').replaceAll('\\','/'))}\n    config:\n      mcpEnabled: ${process.env.LINKTOOL_VERIFY_MCP==='1'}\n      enabledServers: ['amap-maps', 'arcgis-mcp-server', 'bing-search', 'color-style', 'knowledge-db', 'pdf-reader-mcp', 'MiniMax']\n      hooksEnabled: true\n  - id: linktool-runtime-check\n    name: ${JSON.stringify(join(packageRoot, 'scripts/runtime-check-plugin.mjs').replaceAll('\\','/'))}\n`);
