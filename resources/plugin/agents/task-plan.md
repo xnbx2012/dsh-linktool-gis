@@ -1,6 +1,6 @@
 ---
 name: task-plan
-description: "GIS需求 → 可执行Workflow。选址分析/适宜性评价/耕地质量评价等复杂空间分析任务调用。"
+description: "GIS需求 → 可执行Workflow。仅承接复杂流程（选址分析/适宜性评价/耕地质量评价/多因子叠加/需报告），由 question-classify 经 data-retrieval 摸底后委派，再由本智能体生成单一完整 Workflow 委派其它智能体执行。"
 model: opus
 color: orange
 permissionMode: plan

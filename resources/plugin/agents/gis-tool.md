@@ -1,6 +1,6 @@
 ---
 name: gis-tool
-description: "在以下场景使用：1）单步或小型 GIS 空间分析（缓冲区、裁剪、叠加、相交、合并、融合等）2）自然语言转 ArcGIS MCP 工具调用 3）执行前需补齐参数 4）执行后需核验结果 5）失败需诊断重试"
+description: "在以下场景使用：1）单步或小型 GIS 空间分析（缓冲区、裁剪、叠加、相交、合并、融合等），数据与参数明确时可由 question-classify 直达，无需事先摸底 2）自然语言转 ArcGIS MCP 工具调用 3）执行前需补齐参数 4）执行后需核验结果 5）失败需诊断重试"
 model: sonnet
 color: blue
 tools: Glob, Grep, Read, Write, Edit, WebFetch, WebSearch, Bash, mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents, mcp__plugin_linktool-plugin_arcgis-mcp-server__query_feature_attributes, mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties, mcp__plugin_linktool-plugin_color-style__create_map, mcp__plugin_linktool-plugin_memory-server__write_tool_error_memory, mcp__plugin_linktool-plugin_memory-server__read_tool_error_memory, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, ToolSearch, Agent, mcp__plugin_linktool-plugin_arcgis-mcp-server__execute_gis_tool

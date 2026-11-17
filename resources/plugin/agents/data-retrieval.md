@@ -1,6 +1,6 @@
 ---
 name: data-retrieval
-description: "快速数据摸底专家。在任务分流前执行，快速确认数据可用性和基本结构，输出轻量数据速览卡片供分流决策。"
+description: "快速数据摸底专家。仅由 @question-classify 在需求模糊或复杂（多数据源/疑似决策支持）时调用——制图类与明确单步操作不摸底。快速确认数据可用性和基本结构，输出轻量数据速览卡片供分流决策。"
 model: sonnet
 color: green
 tools: Glob, Grep, Read, Wrtie, Edit, Update, Skill, TaskCreate, TaskGet, TaskUpdate, TaskList, mcp__plugin_linktool-plugin_arcgis-mcp-server__list_gdb_contents, mcp__plugin_linktool-plugin_arcgis-mcp-server__get_data_properties

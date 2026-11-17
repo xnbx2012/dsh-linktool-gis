@@ -9,28 +9,28 @@
     },
     {
       "path": "agents/CLAUDE.md",
-      "bytes": 1544,
-      "sha256": "bf3eddf1272696af67b63fc7736e647d3dff3317502234c8d2e7a9ac4b3cfc39"
+      "bytes": 1616,
+      "sha256": "0f67b7924b9392bef8252338053a596f5a2a7dfe0c7e812da7efa4b688f94798"
     },
     {
       "path": "agents/data-retrieval.md",
-      "bytes": 3085,
-      "sha256": "4dbae950f37cbe820a05b8f13a08f65456a4eec13b41cd6ba14cd0c44a1bbd74"
+      "bytes": 3202,
+      "sha256": "0de2bf066cc53311f83281235d99c0e568f950e2359f98b72b5eefeb6a710bcf"
     },
     {
       "path": "agents/gis-data-visualisation.md",
-      "bytes": 3919,
-      "sha256": "5588adfb261693bd5ca56a68df6e248df38cde1ba5e55934748f33c9c578f90b"
+      "bytes": 4260,
+      "sha256": "2330ee19523d59930fb6f63e7f481ca69cd6732cc5d4d9fa64fa2c789581a08a"
     },
     {
       "path": "agents/gis-tool.md",
-      "bytes": 6088,
-      "sha256": "8d37003a847afd6875b960316772d875d22bd024834c24a0f79e679ac158283e"
+      "bytes": 6168,
+      "sha256": "9d015b095e7dd945010b60586b6db4dc090a01a2adca968f242cffc29e2f4be7"
     },
     {
       "path": "agents/question-classify.md",
-      "bytes": 4655,
-      "sha256": "2673e44ac9ac68fd86ddcdbce231b5ae4d86e0759d38bd8157229a73969b5790"
+      "bytes": 6539,
+      "sha256": "fefab31f00a79f56783f9183dfa0753415eab1124bb8333abf88d4b4831c5dc8"
     },
     {
       "path": "agents/report.md",
@@ -39,13 +39,18 @@
     },
     {
       "path": "agents/task-plan.md",
-      "bytes": 6239,
-      "sha256": "54836cf5bcf4bb631278b5b6d2bae0cd3b42def8d222901890f77a656c5320f2"
+      "bytes": 6394,
+      "sha256": "5542a74215a5a27f95cab14795b9609da1f6e080a061ebf4e4005562315d0d49"
     },
     {
       "path": "bin/officecli.exe",
       "bytes": 33558440,
       "sha256": "7d0872af30e0b2aa827f4e2eb0761b8852044a1385c8579f9717db8a8b91c357"
+    },
+    {
+      "path": "bin/officecli.exe.update",
+      "bytes": 33574824,
+      "sha256": "4ef5480e99cf60809b1db8817b2892f0a41062bbb9a9b34f700befe67ed3135c"
     },
     {
       "path": "CLAUDE.md",
@@ -1514,8 +1519,8 @@
     },
     {
       "path": "skills/question-classify/SKILL.md",
-      "bytes": 5411,
-      "sha256": "c7800510f2fec8662cd5fd72a30eb6c5624c93c788699051cdccc8469a0ce3a0"
+      "bytes": 7521,
+      "sha256": "be74e5830c43c7992d9d0a8a2ddc44db67b171b20ed0d1c8ec92b3cf384d23af"
     },
     {
       "path": "skills/report-generate/SKILL.md",
@@ -1618,5 +1623,5 @@
       "sha256": "fdd5e729a25c298de5d3b9ee5dffe723b513c8645ab37789b715fc6ab62f3f1b"
     }
   ],
-  "totalBytes": 65573619
+  "totalBytes": 99153202
 }

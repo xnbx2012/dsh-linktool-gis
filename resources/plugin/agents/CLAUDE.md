@@ -6,7 +6,7 @@ Agent 定义文件目录。每个 `.md` 文件对应一个 Claude Code Agent，�
 
 | Agent | 模型 | 核心职责 | Skill |
 |-------|------|---------|-------|
-| `@question-classify` | haiku | 数据摸底委派 + 问题三分类路由 | question-classify |
+| `@question-classify` | haiku | GIS 任务分流入口：快速判定直达路由（制图/单步/查询不摸底），复杂需求才摸底分类 | question-classify |
 | `@task-plan` | opus | 完整 GIS 任务规划 + 生成全流程 Workflow 脚本 | gis-task-plan, data-doubt-check, task-data-manage, workflow-dsl |
 | `@gis-tool` | sonnet | 单步原子 ArcGIS 操作（buffer/clip/intersect 等） | param-confirm, tool-execute, tool-retry, result-confirm |
 | `@data-retrieval` | sonnet | 快速数据摸底（只读元数据查询），≤4 工具调用 | data-retrieval |

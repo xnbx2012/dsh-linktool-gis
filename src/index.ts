@@ -345,7 +345,7 @@ export function apply(ctx: Context, overrides: Config = {}): void {
     return { ...downstream, messages: [...downstream.messages.filter(m => !forkMessages.some(f => f.id === m.id)), ...outputs] };
   });
 
-  ctx.systemPrompt.section({ name: 'linktool:entry', order: 100, interpolate: false, text: `LinkTool GIS 专用插件已加载。GIS 请求使用 Agent 工具委派 linktool-plugin:question-classify；明确指定的角色可直接委派。角色列表：\n${catalog.agents.map(a => `- linktool-plugin:${a.name}: ${String(a.metadata.description ?? '')}`).join('\n')}\n完整复杂任务由 task-plan 通过迁移后的 Workflow 工具执行。提示词中原始工具名仍可由相应 Agent 使用。` });
+  ctx.systemPrompt.section({ name: 'linktool:entry', order: 100, interpolate: false, text: `LinkTool GIS 专用插件已加载。凡涉及 GIS/地理数据/地图/空间分析的任务（即使未点名 LinkTool 或任何角色），一律先用 Agent 工具委派 linktool-plugin:question-classify 快速分流，主会话不要自行探索数据或长时间停留。分流规则：\n- 制图/出图/专题图/地图美化 → question-classify 直达 linktool-plugin:gis-data-visualisation（不摸底）\n- 单步空间分析（缓冲/裁剪/相交等）与明确单点查询 → question-classify 直达 linktool-plugin:gis-tool 或直接输出\n- 复杂流程（选址/适宜性评价/多因子叠加/需报告）→ question-classify 经 linktool-plugin:data-retrieval 快速摸底后交 linktool-plugin:task-plan，由其生成单一完整 Workflow 委派其它智能体\n- 简单任务全程最多 3 个智能体实例；禁止过度探索与多级停留\n用户明确指定角色时可直接委派该角色。角色列表：\n${catalog.agents.map(a => `- linktool-plugin:${a.name}: ${String(a.metadata.description ?? '')}`).join('\n')}\n完整复杂任务由 task-plan 通过迁移后的 Workflow 工具执行。提示词中原始工具名仍可由相应 Agent 使用。` });
   ctx.systemPrompt.section({ name: 'linktool:mcp-names', order: 101, interpolate: false, text: `实际 MCP 调用使用 Harness 短工具名；原提示词名称映射如下，仅调用当前已注册的工具：\n${[...refs].map(n => `${n} → ${mcpTarget(n, config)}`).join('\n')}` });
   if (config.mcpEnabled) {
     for (const [server, resolved] of Object.entries(resolvedServers())) {
