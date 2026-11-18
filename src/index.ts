@@ -348,7 +348,13 @@ export function apply(ctx: Context, overrides: Config = {}): void {
     return { ...downstream, messages: [...downstream.messages.filter(m => !forkMessages.some(f => f.id === m.id)), ...outputs] };
   });
 
-  ctx.systemPrompt.section({ name: 'linktool:entry', order: 100, interpolate: false, text: `LinkTool GIS 专用插件已加载。凡涉及 GIS/地理数据/地图/空间分析的任务（即使未点名 LinkTool 或任何角色），一律先用 Agent 工具委派 linktool-plugin:question-classify 快速分流，主会话不要自行探索数据或长时间停留。分流规则：\n- 制图/出图/专题图/地图美化 → question-classify 直达 linktool-plugin:gis-data-visualisation（不摸底）\n- 单步空间分析（缓冲/裁剪/相交等）与明确单点查询 → question-classify 直达 linktool-plugin:gis-tool 或直接输出\n- 复杂流程（选址/适宜性评价/多因子叠加/需报告）→ question-classify 经 linktool-plugin:data-retrieval 快速摸底后交 linktool-plugin:task-plan，由其生成单一完整 Workflow 委派其它智能体\n- 简单任务全程最多 3 个智能体实例；禁止过度探索与多级停留\n用户明确指定角色时可直接委派该角色。角色列表：\n${catalog.agents.map(a => `- linktool-plugin:${a.name}: ${String(a.metadata.description ?? '')}`).join('\n')}\n完整复杂任务由 task-plan 通过迁移后的 Workflow 工具执行。提示词中原始工具名仍可由相应 Agent 使用。` });
+  ctx.systemPrompt.section({ name: 'linktool:entry', order: 100, interpolate: false, text: `LinkTool GIS 专用插件已加载。凡涉及 GIS/地理数据/地图/空间分析的任务（即使未点名 LinkTool 或任何角色），按以下规则处理：\n主会话默认配备 arcgis-mcp-server 全部工具（工具清单中 mcp__arcgis-mcp-server__* 全套，含 execute_gis_tool 五引擎统一入口）。\n轻量操作由主会话直接执行、无需委派：数据查看与单点查询（list_gdb_contents / query_feature_attributes / get_data_properties / get_field_unique_values）、引擎状态（get_engine_status / list_available_tools）、单步轻量分析（execute_gis_tool 单次调用或 ≤2 步的简单链条，输入输出路径已明确）。\n超出轻量范围（多步流程/复杂制图/空间建模/需交付报告）才走委派：先用 Agent 工具委派 linktool-plugin:question-classify 快速分流，主会话不要自行做多步探索或长时间停留。分流规则：\n- 制图/出图/专题图/地图美化 → question-classify 直达 linktool-plugin:gis-data-visualisation（不摸底）\n- 单步空间分析（缓冲/裁剪/相交等）与明确单点查询 → question-classify 直达 linktool-plugin:gis-tool 或主会话直接输出\n- 复杂流程（选址/适宜性评价/多因子叠加/需报告）→ question-classify 经 linktool-plugin:data-retrieval 快速摸底后交 linktool-plugin:task-plan，由其生成单一完整 Workflow 委派其它智能体\n- 简单任务全程最多 3 个智能体实例；禁止过度探索与多级停留\n用户明确指定角色时可直接委派该角色。角色列表：\n${catalog.agents.map(a => `- linktool-plugin:${a.name}: ${String(a.metadata.description ?? '')}`).join('\n')}\n完整复杂任务由 task-plan 通过迁移后的 Workflow 工具执行。提示词中原始工具名仍可由相应 Agent 使用。` });
+  // 动态枚举主会话当前真实可用的 arcgis 工具：MCP 晚连时 refs 文档名不全，
+  // 以全局注册表为准逐轮刷新，模型所见与实际一致（无工具时该段为空）。
+  ctx.systemPrompt.section({ name: 'linktool:arcgis-tools', order: 102, interpolate: false, text: () => {
+    const names = ctx.tools.schemas().map(t => t.name).filter(n => n.startsWith('mcp__arcgis-mcp-server__'));
+    return names.length ? `主会话当前可用的 arcgis-mcp-server 工具（轻量操作直接调用，无需委派）：\n${names.join('\n')}` : '';
+  } });
   ctx.systemPrompt.section({ name: 'linktool:mcp-names', order: 101, interpolate: false, text: `实际 MCP 调用使用 Harness 短工具名；原提示词名称映射如下，仅调用当前已注册的工具：\n${[...refs].map(n => `${n} → ${mcpTarget(n, config)}`).join('\n')}` });
   if (config.mcpEnabled) {
     for (const [server, resolved] of Object.entries(resolvedServers())) {
