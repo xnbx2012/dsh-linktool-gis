@@ -14,7 +14,7 @@ import { renderSkillContent } from '@deepseek-ai/dsh-skill';
 import { resolvedServers } from './mcp.js';
 import * as McpClient from '@deepseek-ai/dsh-mcp-client';
 import { HookBridge } from './hooks.js';
-import { benchmarkPolicy, catalog, guardFields, packageRoot, resourceRoot, loadRuntime, readJson, body, getAgent, getSkill, agentName, skillAllowed, skillProvider, definition, workspace, inside, type AgentRecord, type SkillRecord, type RuntimeConfig, type HookGuardConfig } from './catalog.js';
+import { benchmarkPolicy, catalog, guardFields, packageRoot, resourceRoot, loadRuntime, readJson, body, getAgent, getSkill, agentName, sessionKey, skillAllowed, skillProvider, definition, workspace, inside, type AgentRecord, type SkillRecord, type RuntimeConfig, type HookGuardConfig } from './catalog.js';
 import { textTool, registerTasks, registerResources, aliasDefinition, builtins, mcpTarget, mapArguments, toolAllowed, atomicJson } from './tools.js';
 import { registerWorkflow } from './workflow.js';
 import { switchesOf, type HookSwitch, type HookSwitches } from './guard.js';
@@ -168,7 +168,7 @@ export function apply(ctx: Context, overrides: Config = {}): void {
       state.approved = true; return;
     }
     const benchmarkAuthorizations = (globalThis as Record<symbol, unknown>)[Symbol.for('linktool.benchmark.authorization')] as Map<string, string> | undefined;
-    const benchmarkRun = benchmarkAuthorizations?.get(exec.agent.session.id);
+    const benchmarkRun = benchmarkAuthorizations?.get(sessionKey(exec.agent));
     if (benchmarkRun) {
       atomicJson(approvalPath, { digest, approvedBy: 'native-benchmark-controller', runId: benchmarkRun });
       state.approved = true; return;
@@ -179,7 +179,7 @@ export function apply(ctx: Context, overrides: Config = {}): void {
     if (!questions) throw new Error('APPROVAL_REQUIRED: user question service is unavailable; plan remains unapproved');
     const result = await questions.ask({ agent: root, signal: exec.signal, questions: [{ id: 'linktool-plan', header: 'GIS 任务计划', question: '批准以下 GIS 任务计划并执行完整 Workflow？', detail: plan, options: [{ label: '批准执行', description: '执行计划中的 GIS 操作并生成交付物。' }, { label: '暂不执行', description: '保持规划状态并返回修改意见。' }] }] });
     if (!result.answers.find(a => a.id === 'linktool-plan')?.selected.includes('批准执行')) throw new Error('PLAN_NOT_APPROVED: execution was not approved');
-    atomicJson(approvalPath, { digest, approvedBy: root.session.id }); state.approved = true;
+    atomicJson(approvalPath, { digest, approvedBy: sessionKey(root) }); state.approved = true;
   });
 
   const agentTool = textTool('Agent', 'Delegate to a registered LinkTool agent. Choose subagent_type from the original linktool-plugin:<agent> names. Named agents start with no parent conversation; prompt must contain all required inputs.', { subagent_type: { type: 'string', required: true, enum: catalog.agents.map(a => 'linktool-plugin:' + a.name) }, prompt: { type: 'string', required: true }, description: { type: 'string' } }, async (args, exec) => {
@@ -197,7 +197,7 @@ export function apply(ctx: Context, overrides: Config = {}): void {
     if (benchmarkPolicy(agent).skills?.includes(skill.name)) throw new Error(`Benchmark ablation: skill ${skill.name} removed`);
     if (!skill.invocation.modelInvocable || !skillAllowed(skill, state?.agent, config)) throw new Error(`Skill ${name} is unavailable to ${identity(agent)}`);
     if (skill.context !== 'fork') {
-      if (state) { state.activeSkill = skill; state.skillArgs = args; atomicJson(join(workspace(agent), '.dsh', 'linktool-agents', agent.session.id + '.json'), { agent: state.agent.name, skill: skill.name, skillArgs: args }); refresh(agent); }
+      if (state) { state.activeSkill = skill; state.skillArgs = args; atomicJson(join(workspace(agent), '.dsh', 'linktool-agents', sessionKey(agent) + '.json'), { agent: state.agent.name, skill: skill.name, skillArgs: args }); refresh(agent); }
       else rootSkills.set(agent, skill);
       return renderSkillContent({ ...definition(skill), content: body(skill).replaceAll('$ARGUMENTS', args) });
     }
@@ -223,7 +223,7 @@ export function apply(ctx: Context, overrides: Config = {}): void {
     let state = pending.getStore();
     const parent = state?.parent ?? ctx.agents.currentInitiator();
     const policyMap = (globalThis as Record<symbol, unknown>)[Symbol.for('linktool.benchmark.policies')] as Map<string, unknown> | undefined;
-    if (parent && policyMap?.has(parent.session.id)) policyMap.set(agent.session.id, policyMap.get(parent.session.id));
+    if (parent && policyMap?.has(sessionKey(parent))) policyMap.set(sessionKey(agent), policyMap.get(sessionKey(parent)));
     const roleMap = ((globalThis as Record<symbol, unknown>)[Symbol.for('linktool.benchmark.roles')] ??= new Map()) as Map<string,string>;
     const removal = benchmarkPolicy(agent);
     agent.ctx.get('tools')!.guard(exec => {
@@ -232,14 +232,14 @@ export function apply(ctx: Context, overrides: Config = {}): void {
       if (removal.workflow && /workflow/i.test(exec.name)) return 'Benchmark ablation: Workflow removed';
       return undefined;
     });
-    const rolePath = join(workspace(agent), '.dsh', 'linktool-agents', agent.session.id + '.json');
+    const rolePath = join(workspace(agent), '.dsh', 'linktool-agents', sessionKey(agent) + '.json');
     if (!state && existsSync(rolePath)) {
       const saved = readJson<{ agent: string; skill?: string; skillArgs?: string }>(rolePath);
       state = { agent: getAgent(saved.agent), activeSkill: saved.skill ? getSkill(saved.skill) : undefined, skillArgs: saved.skillArgs, steps: 0, registrations: new Map() };
     }
-    roleMap.set(agent.session.id, state?.agent.name ?? 'main');
+    roleMap.set(sessionKey(agent), state?.agent.name ?? 'main');
     const observer=(globalThis as Record<symbol,unknown>)[Symbol.for('linktool.benchmark.observe')] as ((sid:string,type:string,data:unknown)=>void)|undefined;
-    observer?.(agent.session.id,'agent/role',{session_id:agent.session.id,agent_label:state?.agent.name ?? 'main'});
+    observer?.(sessionKey(agent),'agent/role',{session_id:sessionKey(agent),agent_label:state?.agent.name ?? 'main'});
     if (!state) {
       if (initializedRoots.has(agent)) return undefined;
       initializedRoots.add(agent);

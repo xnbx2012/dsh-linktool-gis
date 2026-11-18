@@ -88,7 +88,12 @@ export function skillProvider(agent: AgentRecord | undefined, config: RuntimeCon
   return { name: 'linktool-plugin', async list() { return catalog.skills.filter(s => skillAllowed(s, agent, config)).map(s => ({ ...definitionSummary(s), rank: BUNDLED_SKILL_RANK, locator: s.name, metadata: s.metadata })); }, async get(candidate) { const s = getSkill(String(candidate.locator)); if (!skillAllowed(s, agent, config)) return undefined; return definition(s); } };
 }
 function definitionSummary(s: SkillRecord) { return { name: s.name, description: String(s.metadata.description ?? ''), invocation: s.invocation, source: 'bundled' as const, provider: 'linktool-plugin', path: join(resourceRoot, s.path), resourceBase: { kind: 'directory' as const, path: dirname(join(resourceRoot, s.path)) } }; }
-export function workspace(agent?: Agent): string { return agent?.session.header.cwd ?? process.cwd(); }
+/** Null-safe session id: desktop runtimes hand out Agent objects whose
+ *  `.session` may be absent (subagent requests in particular), and a bare
+ *  `agent.session.id` there crashes every provider dispatch with
+ *  "Cannot read properties of undefined (reading 'id')". */
+export function sessionKey(agent?: Agent): string { return agent?.session?.id ?? ''; }
+export function workspace(agent?: Agent): string { return agent?.session?.header?.cwd ?? process.cwd(); }
 export function inside(path: string, root: string): boolean { const rel = relative(resolve(root), resolve(path)); return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel)); }
 /** Resolve literal old prompt paths without rewriting their prompt bodies. */
 export function resourcePath(path: string, agent?: Agent, skill?: SkillRecord): string {
@@ -103,4 +108,4 @@ export function resourcePath(path: string, agent?: Agent, skill?: SkillRecord): 
 }
 
 export interface BenchmarkPolicy { agents?: string[]; skills?: string[]; tools?: string[]; mcp?: string[]; hooks?: string[]; workflows?: string[]; workflow?: boolean; resume_generation?: number }
-export function benchmarkPolicy(agent?: Agent): BenchmarkPolicy { return agent ? ((globalThis as Record<symbol, unknown>)[Symbol.for('linktool.benchmark.policies')] as Map<string, BenchmarkPolicy> | undefined)?.get(agent.session.id) ?? {} : {}; }
+export function benchmarkPolicy(agent?: Agent): BenchmarkPolicy { return agent ? ((globalThis as Record<symbol, unknown>)[Symbol.for('linktool.benchmark.policies')] as Map<string, BenchmarkPolicy> | undefined)?.get(sessionKey(agent)) ?? {} : {}; }

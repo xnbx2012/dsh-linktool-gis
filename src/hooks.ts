@@ -7,7 +7,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type {} from '@deepseek-ai/dsh-compaction';
 import { mapArguments, mcpTarget } from './tools.js';
 import { expandPaths, childEnvironment } from './paths.js';
-import { benchmarkPolicy, packageRoot, resourceRoot, readJson, workspace, type RuntimeConfig, type SkillRecord } from './catalog.js';
+import { benchmarkPolicy, packageRoot, resourceRoot, readJson, sessionKey, workspace, type RuntimeConfig, type SkillRecord } from './catalog.js';
 import { guardPreToolUse, hookSwitchOf, switchesOf, type HookSwitches } from './guard.js';
 
 declare module '@deepseek-ai/dsh-llm' { interface MessageSourceMap { 'linktool-hook': { kind: 'linktool-hook'; form: 'instructions' } } }
@@ -55,9 +55,9 @@ export class HookBridge {
     // The matched code baseline is authorized to execute ArcPy code. It must
     // not inherit LinkTool's atomic-tool-only anti-bypass treatment.
     const benchmarkRoutes = (globalThis as Record<symbol, unknown>)[Symbol.for('linktool.benchmark.architectures')] as Map<string, string | undefined> | undefined;
-    if (owner && benchmarkRoutes?.get(owner.session.id) === 'code') return { contexts: [] };
+    if (owner && benchmarkRoutes?.get(sessionKey(owner)) === 'code') return { contexts: [] };
     const name = exec ? legacyTool(exec.name) : 'auto';
-    const payload = { session_id: owner?.session.id ?? '', transcript_path: '', cwd: workspace(owner), hook_event_name: event, agent_name: this.identity(owner), agent: this.identity(owner), tool_name: name, tool_use_id: exec?.callId ?? '', tool_input: exec ? mapArguments(mcpTarget(exec.name, this.config), exec.arguments, owner, this.currentSkill(owner)) : {}, ...(result ? { tool_response: { content: result.content, isError: result.isError, ...('value' in result ? { structuredContent: result.value } : {}), ...('error' in result ? { error: result.error } : {}) } } : {}) };
+    const payload = { session_id: sessionKey(owner), transcript_path: '', cwd: workspace(owner), hook_event_name: event, agent_name: this.identity(owner), agent: this.identity(owner), tool_name: name, tool_use_id: exec?.callId ?? '', tool_input: exec ? mapArguments(mcpTarget(exec.name, this.config), exec.arguments, owner, this.currentSkill(owner)) : {}, ...(result ? { tool_response: { content: result.content, isError: result.isError, ...('value' in result ? { structuredContent: result.value } : {}), ...('error' in result ? { error: result.error } : {}) } } : {}) };
     // enhanced_record.py reads tool_input.tool_response; other CC hooks read
     // the top-level field. Supply both without modifying the preserved source.
     if (result) payload.tool_input.tool_response = payload.tool_response;
@@ -76,7 +76,7 @@ export class HookBridge {
         const hookStart=performance.now();
         if (hook.type !== 'command' || hook.async) throw new Error(`Unsupported hook execution type in ${event}`);
         const run = await runCommand(hook.command, payload, workspace(owner), signal, (hook.timeout ?? this.config.hookTimeoutMs / 1000) * 1000, this.identity(owner));
-        observer?.(owner?.session.id ?? '', 'hook/end', { hook_id:hookId,event,session_id:owner?.session.id,duration_ms:performance.now()-hookStart,exit_code:run.code });
+        observer?.(sessionKey(owner), 'hook/end', { hook_id:hookId,event,session_id:sessionKey(owner),duration_ms:performance.now()-hookStart,exit_code:run.code });
         let output: HookOutput = {};
         if (run.stdout.trim().startsWith('{')) {
           try { output = JSON.parse(run.stdout); } catch { this.ctx.logger.warn(`LinkTool ${event}: non-JSON hook stdout`); }
@@ -124,17 +124,17 @@ export class HookBridge {
       return { ...downstream, additionalContexts: [...contexts, ...(downstream.additionalContexts ?? [])] };
     });
     const pending = new Set<string>();
-    this.ctx.on('session/event', (session, event) => { if (event.type === 'compaction/end' && !event.data.error) pending.add(session.id); });
+    this.ctx.on('session/event', (session, event) => { if (event.type === 'compaction/end' && !event.data.error) pending.add(session?.id ?? ''); });
     this.ctx.on('agent/pre-step', async ({ agent, signal }, next) => {
       const decision = await next();
-      if (!pending.has(agent.session.id) || !this.identity(agent) || decision.kind !== 'enter') return decision;
+      if (!pending.has(sessionKey(agent)) || !this.identity(agent) || decision.kind !== 'enter') return decision;
       const hook = await this.run('PostCompact', undefined, undefined, agent, signal);
-      pending.delete(agent.session.id);
+      pending.delete(sessionKey(agent));
       return { ...decision, messages: [...decision.messages, ...hook.contexts.map(text => this.message(text))] };
     });
     this.ctx.on('agent/created', async ({ agent, source, signal }) => {
       if (source === 'compact' && this.identity(agent)) {
-        pending.delete(agent.session.id);
+        pending.delete(sessionKey(agent));
         const hook = await this.run('PostCompact', undefined, undefined, agent, signal);
         for (const text of hook.contexts) agent.inject(this.message(text));
       }

@@ -1,6 +1,6 @@
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
-import { workspace } from './catalog.js';
+import { sessionKey, workspace } from './catalog.js';
 import type { HookGuardConfig, SkillRecord } from './catalog.js';
 
 /** Hooks carried by config/hooks.json that the settings page can switch off. */
@@ -26,7 +26,7 @@ export const switchesOf = (guard: HookGuardConfig | undefined): HookSwitches => 
  */
 export const benchmarkCodeRoute = (exec: ToolExecution): boolean => {
   const routes = (globalThis as Record<symbol, unknown>)[Symbol.for('linktool.benchmark.architectures')] as Map<string, string> | undefined;
-  return !!exec.agent && routes?.get(exec.agent.session.id) === 'code';
+  return !!exec.agent && routes?.get(sessionKey(exec.agent)) === 'code';
 };
 
 const inside = (path: string, root: string): boolean => {
