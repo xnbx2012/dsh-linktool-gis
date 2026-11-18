@@ -44,11 +44,6 @@
     },
     {
       "path": "bin/officecli.exe",
-      "bytes": 33558440,
-      "sha256": "7d0872af30e0b2aa827f4e2eb0761b8852044a1385c8579f9717db8a8b91c357"
-    },
-    {
-      "path": "bin/officecli.exe.update",
       "bytes": 33574824,
       "sha256": "4ef5480e99cf60809b1db8817b2892f0a41062bbb9a9b34f700befe67ed3135c"
     },
@@ -1623,5 +1618,5 @@
       "sha256": "fdd5e729a25c298de5d3b9ee5dffe723b513c8645ab37789b715fc6ab62f3f1b"
     }
   ],
-  "totalBytes": 99153202
+  "totalBytes": 65594762
 }

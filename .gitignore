@@ -30,3 +30,6 @@ resources/plugin/scripts/arcgis-mcp-server/schema.json
 
 # officecli 自更新残留（运行时生成，可能被进程占用无法读取）
 *.update.partial
+
+# 本地浏览器测试残留
+.playwright-mcp/

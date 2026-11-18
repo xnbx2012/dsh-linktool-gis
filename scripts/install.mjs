@@ -40,5 +40,5 @@ if (!process.exitCode) {
   }
   const restore = spawnSync(process.execPath, [join(root,'scripts/restore-resources.mjs'),installed], {stdio:'inherit',windowsHide:true});
   if (restore.status !== 0) { process.exitCode = restore.status ?? 1; }
-  else console.log(`安装完成。运行 npx @deepseek-ai/dsh@0.2.1-rc.5 --profile ${profile} 启动。`);
+  else console.log(`安装完成。请使用 DSH >=0.2.1-rc.5 启动（如 npx @deepseek-ai/dsh@latest --profile ${profile}）。\n注意：0.2.0-rc.2 等旧版 DSH 无法加载本插件；若 web 端插件管理器"再次安装"报"无法从依赖变更中确定安装了哪一个包"，请先升级 DSH，或改用本脚本/命令行更新。`);
 }

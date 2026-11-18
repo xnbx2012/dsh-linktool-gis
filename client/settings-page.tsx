@@ -255,7 +255,9 @@ export function apply(ctx: any): void {
           jsx.jsx('span', { className: 'LTGIS_dot', 'aria-hidden': 'true' }),
           detail ? jsx.jsx('span', { title: detail, children: label }) : jsx.jsx('span', { children: label }),
           // 探测到的引擎版本号：可用状态后的小字灰色标注（不可用/未探测不展示）。
-          probe!.available && !unknown && probe!.version
+          // 未知判断必须先于属性访问：首次探测前 engineStatus 尚未写入配置，
+          // probe 为 undefined，先取 probe.available 会让整个设置分区崩溃空白。
+          !unknown && probe!.available && probe!.version
             ? jsx.jsx('span', { className: 'LTGIS_ver', title: detail, children: probe!.version })
             : null,
         ] }),

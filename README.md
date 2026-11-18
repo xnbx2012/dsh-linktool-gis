@@ -2,7 +2,7 @@
 
 将原 Claude Code GIS 插件迁移为 DeepSeek Harness 的 Cordis 插件。包含 **6 个 Agent、21 个注册 Skill、8 个 MCP 配置、10 个已启用的 hook 命令绑定**，以及完整的源程序、参考资料、二进制和依赖资料。原文件存放在 `resources/plugin`，提示词正文没有改写。
 
-目标版本：**DeepSeek Harness 0.2.1-rc.5 ～ 0.2.2-rc.3**。兼容区间以插件 `package.json` 的 `engines.dsh: ">=0.2.1-rc.5 <0.3.0-0"` 声明（半开区间；0.2.1-rc.5 与 0.2.2-rc.3 双栈实测：插件装载、设置页读写、引擎探测与 MCP 均正常）。不要直接在 0.1.x 或 0.2.0-rc.2 上加载；这些版本的 Agent、Skill、Workflow 接口不同。注意 dsh 0.2.2（cordis 4.1）存在启动期 reconcile 窗口：过早的插件侧设置写入会失败，适配层已带退避重试，宿主就绪后自动补写。
+目标版本：**DeepSeek Harness 0.2.1-rc.5 ～ 0.2.2-rc.4**。兼容区间以插件 `package.json` 的 `engines.dsh: ">=0.2.1-rc.5 <0.3.0-0"` 与 `peerDependencies`（同区间的 dsh 服务包，cordis `>=4.0.5 <5`、schemastery `>=3.18.5 <4`）共同声明（半开区间；0.2.1-rc.5、0.2.2-rc.1 与 0.2.2-rc.3 实测：插件装载、设置页读写、引擎探测与 MCP 均正常）。不要直接在 0.1.x 或 0.2.0-rc.2 上加载；这些版本的 Agent、Skill、Workflow 接口不同（如 0.2.0 缺少 `subagents.startActivation`），插件装上也会被兼容性门禁拒绝或运行失败。注意 dsh 0.2.2（cordis 4.1）存在启动期 reconcile 窗口：过早的插件侧设置写入会失败，适配层已带退避重试，宿主就绪后自动补写。
 
 ## 0. 设置页（LinkTool-GIS 标签页）
 
@@ -101,10 +101,26 @@ npm run install:plugin -- linktool
 
 不存在的 profile 会先按 `web` 模板初始化。已有 profile 保留自身应用类型；`desktop` profile 由 Harness 桌面端专门管理，本命令不适用于它。
 
+#### 升级已安装的插件（从旧版本更新）
+
+推荐用安装脚本原地更新（覆盖安装，无需先卸载）：
+
+```powershell
+git pull   # 或解压新版本包后进入新目录
+npm ci
+npm run install:plugin -- web
+```
+
+**不要在旧版 DSH（≤ 0.2.0-rc.2）的 web 插件管理器里"再次安装"新版本**：那一版宿主靠"安装前后依赖 diff"判断装了哪个包，同一路径覆盖安装时依赖串不变，diff 判不出来，会报 **"无法从依赖变更中确定安装了哪一个包"**（ambiguous-install）。0.2.1-rc.5 起宿主增加了按本地路径/压缩包反查包名的回退逻辑，该场景已修复。遇到该报错的处置：
+
+1. **先升级 DSH**（`npm i -g @deepseek-ai/dsh@latest`）——本插件 3.1.0 本来就要求 ≥0.2.1-rc.5，旧版 DSH 装上也无法通过兼容性门禁；
+2. 升级 DSH 后再用 web 插件管理器安装新版本，或直接用上面的 `npm run install:plugin`；
+3. 也可先在插件管理器里**卸载旧版再安装新版**（全新安装不走 diff 判断）。
+
 启动（请在你的 GIS 项目目录运行，工作目录是数据工作空间）：
 
 ```powershell
-npx @deepseek-ai/dsh@0.2.1-rc.5 --profile web
+npx @deepseek-ai/dsh@latest --profile web
 ```
 
 自定义 profile 将末尾 `web` 换成安装时的名称。默认 Web 地址通常为 `http://127.0.0.1:3080`，以启动日志显示的地址为准。
