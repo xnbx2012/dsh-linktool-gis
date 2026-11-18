@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import type { Context } from '@deepseek-ai/cordis';
-import { packageRoot, resourceRoot } from './catalog.js';
+import { guardFields, packageRoot, resourceRoot } from './catalog.js';
 import { childEnvironment } from './paths.js';
 import { atomicJson } from './tools.js';
 
@@ -39,13 +39,26 @@ export function engineSwitch(overrides: Record<string, unknown>, field: EngineFi
   return ENGINE_DEFAULTS[field];
 }
 
+/** 输出路径严格限制（pathRestrict）实时值：镜像给 MCP 进程的路径底线。
+ *  Shipped default is off（switchesOf），关 = 输入/输出路径不作任何限制。 */
+export function pathRestrictSwitch(overrides: Record<string, unknown>): boolean {
+  const value = overrides[guardFields.pathRestrict];
+  if (value && typeof value === 'object' && typeof (value as { get?: unknown }).get === 'function') {
+    const resolved = (value as { get(): unknown }).get();
+    if (typeof resolved === 'boolean') return resolved;
+  }
+  if (typeof value === 'boolean') return value;
+  return false;
+}
+
 /** Switch file the MCP server consults per tool call (injected as LINKTOOL_ENGINE_SWITCHES). */
 export const engineSwitchesFile = (): string => join(packageRoot, '.runtime', 'engine-switches.json');
 
-/** Mirror the five live switches for the MCP server. Idempotent and cheap. */
+/** Mirror the five live switches + the path-restriction switch for the MCP server. Idempotent and cheap. */
 export function writeEngineSwitches(overrides: Record<string, unknown>): void {
   const payload: Record<string, boolean> = {};
   for (const [key, field] of Object.entries(ENGINE_KEYS)) payload[key] = engineSwitch(overrides, field);
+  payload.pathRestrict = pathRestrictSwitch(overrides);
   atomicJson(engineSwitchesFile(), payload);
 }
 

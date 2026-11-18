@@ -89,8 +89,8 @@
     },
     {
       "path": "scripts/arcgis-mcp-server/main.py",
-      "bytes": 84903,
-      "sha256": "af34b8b5ed93b7cf56c78a258b668fab05610d0db0f947b1ae4c94fd866f10a7"
+      "bytes": 86042,
+      "sha256": "5b09feec2c1ebc7ed739fde99ccbd20c574eed5c5bf14cd112f3062c0f7b9b8c"
     },
     {
       "path": "scripts/arcgis-mcp-server/pyproject.toml",
@@ -139,8 +139,8 @@
     },
     {
       "path": "scripts/arcgis-mcp-server/__pycache__/main.cpython-314.pyc",
-      "bytes": 110593,
-      "sha256": "d63dcdfc79c2ac1a82bf23859f912b2606d2974c04e14120fd005734f08b5fe2"
+      "bytes": 112077,
+      "sha256": "9311d999a7ff75bc867186b7f8b185aff9ed81488b1360f94b2a628eb8561ab7"
     },
     {
       "path": "scripts/arcgis-mcp-server/__pycache__/schema_loader.cpython-312.pyc",
@@ -1618,5 +1618,5 @@
       "sha256": "fdd5e729a25c298de5d3b9ee5dffe723b513c8645ab37789b715fc6ab62f3f1b"
     }
   ],
-  "totalBytes": 65594762
+  "totalBytes": 65597385
 }

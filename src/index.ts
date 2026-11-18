@@ -9,7 +9,7 @@ import type { Context } from '@deepseek-ai/cordis';
 // into cordis Events (erased at runtime; the loader itself is Host-owned).
 import type {} from '@deepseek-ai/cordis-plugin-loader';
 import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent';
-import type { SubagentRun, SubagentActivation, ResolvedSubagentStartRequest, SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
+import type { SubagentRun, SubagentActivation, ResolvedSubagentStartRequest, SubagentStartRequest, SubagentActivationSpec } from '@deepseek-ai/dsh-subagent';
 import { renderSkillContent } from '@deepseek-ai/dsh-skill';
 import { resolvedServers } from './mcp.js';
 import * as McpClient from '@deepseek-ai/dsh-mcp-client';
@@ -147,9 +147,12 @@ export function apply(ctx: Context, overrides: Config = {}): void {
     const runtime = request.parent.ctx.get('subagents')!;
     if (!runtime.getProvider(providerName)) throw new Error(`ENV_ERROR: native ${providerName} provider unavailable`);
     const state: AgentState = { agent: record, parent: request.parent, activeSkill: skill, skillArgs: skill ? request.prompt.filter(b => b.type === 'text').map(b => b.type === 'text' ? b.text : '').join('\n') : undefined, steps: 0, registrations: new Map() };
-    return pending.run(state, async () => toRun(await runtime.startActivation({ provider: providerName, label: request.label ?? record.name, delivery: 'caller', signal: request.signal, request: { ...request, agentOptions: options, maxDepth: config.maxAgentDepth } })));
+    // dsh ≥0.2.2 桌面运行时在 manager 内校验 spec.parent 为「确切的存活父 Agent」，
+  // parent 必须位于 spec 顶层；老运行时只读 request.parent，顶层字段被忽略。
+  // 两处都带上以同时兼容 web 与 desktop 宿主。字段在 pin 的旧类型里不存在，断言展开。
+  return pending.run(state, async () => toRun(await runtime.startActivation({ provider: providerName, label: request.label ?? record.name, delivery: 'caller', signal: request.signal, parent: request.parent, request: { ...request, agentOptions: options, maxDepth: config.maxAgentDepth } } as SubagentActivationSpec)));
   }
-  function start(name: string, request: SubagentStartRequest): Promise<SubagentRun> { return ctx.subagents.startActivation({ provider: 'linktool:' + agentName(name), label: request.label ?? agentName(name), delivery: 'caller', signal: request.signal, request }).then(toRun); }
+  function start(name: string, request: SubagentStartRequest): Promise<SubagentRun> { return ctx.subagents.startActivation({ provider: 'linktool:' + agentName(name), label: request.label ?? agentName(name), delivery: 'caller', signal: request.signal, parent: request.parent, request } as SubagentActivationSpec).then(toRun); }
   const providerCapabilities = { agentOptions: true, agentPreset: true, outputSchema: true, depthLimit: true };
   for (const record of catalog.agents) ctx.subagents.registerProvider({ name: 'linktool:' + record.name, capabilities: providerCapabilities, inheritsParentContext: false, start: request => dispatch(record.name, request) });
   registerWorkflow(ctx, dispatch, async exec => {
@@ -204,7 +207,7 @@ export function apply(ctx: Context, overrides: Config = {}): void {
     const record = skill.agent ? getAgent(skill.agent) : state?.agent;
     if (!record) throw new Error(`Fork skill ${name} has no agent binding`);
     const providerName = `linktool-skill:${skill.name}`;
-    const run = toRun(await ctx.subagents.startActivation({ provider: providerName, label: skill.name, delivery: 'caller', signal, request: { parent: agent, prompt: [{ type: 'text', text: args || `执行技能 ${skill.name}。调用者必须通过 args 显式传入所需输入；没有输入时返回需要补充的信息。` }] } }));
+    const run = toRun(await ctx.subagents.startActivation({ provider: providerName, label: skill.name, delivery: 'caller', signal, parent: agent, request: { parent: agent, prompt: [{ type: 'text', text: args || `执行技能 ${skill.name}。调用者必须通过 args 显式传入所需输入；没有输入时返回需要补充的信息。` }] } } as SubagentActivationSpec));
     try { const result = await run.result; if (result.stopReason !== 'completed') throw new Error(`Fork skill stopped: ${result.stopReason}`); return result.structured ?? result.output; } finally { await run.dispose(); }
   }
   for (const skill of catalog.skills.filter(s => s.context === 'fork')) ctx.subagents.registerProvider({ name: 'linktool-skill:' + skill.name, capabilities: providerCapabilities, inheritsParentContext: false, async start(request) {
@@ -322,7 +325,7 @@ export function apply(ctx: Context, overrides: Config = {}): void {
     let detectRequested = false;
     for (const path of paths ?? []) {
       const field = path?.[0];
-      if ((ENGINE_FIELDS as readonly string[]).includes(field)) switchesChanged = true;
+      if ((ENGINE_FIELDS as readonly string[]).includes(field) || field === guardFields.pathRestrict) switchesChanged = true;
       if (field === 'engineDetectRequest') detectRequested = true;
     }
     if (switchesChanged) writeEngineSwitches(engineOverrides);

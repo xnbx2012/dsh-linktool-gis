@@ -74,6 +74,23 @@ def _engine_switch(engine: str) -> bool:
     return _DEFAULT_ENGINE_SWITCHES[engine]
 
 
+def _path_restrict() -> bool:
+    """读「输出路径严格限制」开关（与引擎开关同文件，适配层实时落盘）。
+
+    True = 输入/输出路径限制在 AGENT_WORK_DIR 的 01/02/03 子目录；
+    False = 不作任何路径限制（不限于 01/02/03，也不限于工作区内）。
+    文件缺失/损坏/字段缺失时回落 True（fail-closed），裸跑/调试不放宽。
+    """
+    try:
+        with open(_ENGINE_SWITCH_PATH, "r", encoding="utf-8") as f:
+            value = json.load(f).get("pathRestrict")
+        if isinstance(value, bool):
+            return value
+    except (OSError, ValueError):
+        pass
+    return True
+
+
 def _coerce_optional_list(v: Any) -> Any:
     """把空串 / 'null' / None 归一为 None，其余原样返回。
 
@@ -1047,21 +1064,28 @@ def _finalize_gdb_outputs(redirects: list[dict[str, Any]]) -> list[dict[str, Any
 
 
 # 工作区路径底线：MCP 进程自身的 fail-closed 校验（Hook 是附加层，不是安全边界）。
+# 受设置页「输出路径严格限制」（pathRestrict）实时控制：关闭时输入/输出路径
+# 不作任何限制（不限于 01/02/03 子目录，也不限于 AGENT_WORK_DIR）。
 _PATH_KEY_MARKERS = ("path", "file", "folder", "workspace", "input", "output", "raster", "vector", "features", "dataset", "clip")
 _OUTPUT_KEY_MARKERS = ("out", "output", "target", "destination", "result")
 
 
 def _require_workspace_path(path: str, *, writable: bool = False) -> str:
-    """Fail closed unless *path* is inside this conversation's workspace.
+    """Resolve *path* and, when 严格限制 is on, fail closed unless it is inside
+    this conversation's workspace (writable keys additionally restricted to
+    02_WorkSpace/03_Result).
 
     This check lives in the MCP process itself. Hooks and prompts are additional
-    policy layers, not the security boundary.
+    policy layers, not the security boundary. The switch is re-read per call so
+    settings-page flips apply to live sessions without restarting the server.
     """
     if not isinstance(path, str) or not path.strip():
         raise PermissionError("empty path is not allowed")
     root = os.path.realpath(os.environ.get("AGENT_WORK_DIR", os.getcwd()))
     raw = os.path.expanduser(path.strip())
     target = os.path.realpath(raw if os.path.isabs(raw) else os.path.join(root, raw))
+    if not _path_restrict():
+        return target
     try:
         if os.path.commonpath([root, target]) != root:
             raise PermissionError("path is outside the current conversation workspace")
