@@ -57,12 +57,20 @@ export function aliasDefinition(alias: string, target: string, definition: ToolD
     async execute(raw, exec) {
       const args = mapArguments(target, raw, exec.agent, typeof skill === 'function' ? skill() : skill);
       if (target === 'pwsh' && alias === 'Bash' && typeof args.command === 'string') {
-        const candidates = [process.env.LINKTOOL_BASH, join(process.env.ProgramFiles ?? 'C:/Program Files', 'Git', 'bin', 'bash.exe'), 'C:/Program Files/Git/usr/bin/bash.exe'];
-        const bash = candidates.find((path): path is string => !!path && existsSync(path));
-        if (!bash) throw new Error('ENV_ERROR: original Bash skills require Git Bash; install Git for Windows or set LINKTOOL_BASH');
         const quote = (value: string) => "'" + value.replaceAll("'", "''") + "'";
         const env = childEnvironment(workspace(exec.agent));
-        args.command = `$env:PATH=${quote(env.PATH!)}; $env:PYTHONIOENCODING='utf-8'; & ${quote(bash)} -c ${quote(args.command)}; exit $LASTEXITCODE`;
+        if (process.platform === 'win32') {
+          // Windows：宿主的 PowerShell 工具不是 bash，原 Bash 技能需借道 Git Bash 跑。
+          const candidates = [process.env.LINKTOOL_BASH, join(process.env.ProgramFiles ?? 'C:/Program Files', 'Git', 'bin', 'bash.exe'), 'C:/Program Files/Git/usr/bin/bash.exe'];
+          const bash = candidates.find((path): path is string => !!path && existsSync(path));
+          if (!bash) throw new Error('ENV_ERROR: original Bash skills require Git Bash; install Git for Windows or set LINKTOOL_BASH');
+          args.command = `$env:PATH=${quote(env.PATH!)}; $env:PYTHONIOENCODING='utf-8'; & ${quote(bash)} -c ${quote(args.command)}; exit $LASTEXITCODE`;
+        } else {
+          // POSIX：宿主的 pwsh 不是 bash，原 Bash 技能直接经系统 sh 跑（bash 是 sh 的超集）。
+          // 早先这里无条件去找 Git Bash，Linux 上必然失败并抛出 Windows 专属错误。
+          const shell = ['/bin/bash', '/bin/sh'].find((path) => existsSync(path)) ?? '/bin/sh';
+          args.command = `PATH=${quote(env.PATH!)} PYTHONIOENCODING=utf-8 ${quote(shell)} -c ${quote(args.command)}`;
+        }
       }
       if (target === 'read' && typeof args.file_path === 'string' && inside(args.file_path, resourceRoot)) {
         // Bundled references are trusted read-only resources; SKILL.md remains Skill-only.

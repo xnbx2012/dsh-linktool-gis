@@ -16,7 +16,9 @@ cpSync(root, staging, { recursive: true, filter: path => {
 writeFileSync(join(output, '分发说明.txt'), '将 dsh 文件夹整体发给接收方；解压后进入 dsh 并按 README.md 安装。包内保留源插件凭据，适用于授权私下分发；公开前请替换 config/mcp.json 和 resources/plugin/.claude-plugin/plugin.json 中的凭据，并重建完整性清单。\n');
 const zip = join(output, 'linktool-dsh-3.1.0.zip');
 const python = 'import os,sys,zipfile\nroot,out=sys.argv[1:]\nwith zipfile.ZipFile(out,"w",zipfile.ZIP_DEFLATED,compresslevel=6) as z:\n for base,dirs,files in os.walk(root):\n  for name in files:\n   path=os.path.join(base,name);z.write(path,os.path.relpath(path,os.path.dirname(root)))';
-const result = spawnSync('python', ['-c',python,staging,zip], {stdio:'inherit',windowsHide:true});
+// Windows 上命令名是 python，Linux/macOS 发行版通常只有 python3。
+const pythonCommand = process.env.PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
+const result = spawnSync(pythonCommand, ['-c',python,staging,zip], {stdio:'inherit',windowsHide:true});
 if (result.error) throw result.error;
 if (result.status !== 0) process.exitCode = result.status ?? 1;
 console.log('发布目录：' + output);

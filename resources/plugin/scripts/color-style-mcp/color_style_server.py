@@ -256,9 +256,17 @@ def select_backend() -> tuple[str, str | None, str | None]:
     if not arcpy_on and not qgis_on:
         reasons.append("设置页中 ArcGIS Pro 与 QGIS 引擎开关均为关闭")
     if arcpy_on and not arcpy_exe:
-        reasons.append("ArcGIS Pro 引擎已开启，但未找到 arcgispro-py3 解释器（设置 ARCGIS_PRO_PATH 或安装 ArcGIS Pro）")
+        reasons.append("ArcGIS Pro 引擎已开启，但未找到 arcgispro-py3 解释器（设置 ARCGIS_PRO_PATH 或安装 ArcGIS Pro；arcpy 为 Windows 专属引擎，Linux/macOS 不可用）")
     if qgis_on and not qgis_launcher:
-        reasons.append("QGIS 引擎已开启，但未找到 python-qgis*.bat 启动器（需安装 QGIS 3.x）")
+        if os.name == "nt":
+            reasons.append("QGIS 引擎已开启，但未找到 python-qgis*.bat 启动器（需安装 QGIS 3.x）")
+        else:
+            reasons.append(
+                "QGIS 引擎已开启，但 QGIS Python 后端不可用：POSIX 上需要系统能 import qgis，"
+                "即 Debian/Ubuntu 需安装 python3-qgis（sudo apt install python3-qgis）。"
+                "排查：python3 -c \"import qgis\" 看是否报 ModuleNotFoundError；"
+                "同时确认 qgis_process 在 PATH 上。"
+            )
     return "", None, "无可用制图后端：" + "；".join(reasons)
 
 
@@ -266,7 +274,16 @@ def execute_qgis_script(script_path: str | os.PathLike, input_data: dict | None 
     """经 QGIS 自带 Python 启动器执行制图脚本（stdin JSON 进、stdout JSON 行出）。"""
     launcher = qgis_python_launcher()
     if not launcher:
-        return {"success": False, "result": None, "error": "未找到 QGIS python-qgis*.bat 启动器（需安装 QGIS 3.x）"}
+        tip = (
+            "未找到 QGIS python-qgis*.bat 启动器（需安装 QGIS 3.x）"
+            if os.name == "nt"
+            else (
+                "QGIS Python 后端不可用：POSIX 上需系统 python3 能 import qgis，"
+                "Debian/Ubuntu 请执行 sudo apt install python3-qgis；"
+                "排查：python3 -c \"import qgis\"；并确认 qgis_process 在 PATH 上"
+            )
+        )
+        return {"success": False, "result": None, "error": tip}
     script_path = str(script_path)
     if not os.path.isfile(script_path):
         return {"success": False, "result": None, "error": f"脚本文件不存在: {script_path}"}

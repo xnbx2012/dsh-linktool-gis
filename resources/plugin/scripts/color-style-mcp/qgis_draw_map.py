@@ -547,14 +547,30 @@ def _north_arrow_svg():
     prefix = (os.environ.get("QGIS_PREFIX_PATH") or "").replace("\\", "/").rstrip("/")
     candidates = []
     if prefix:
+        # Windows OSGeo4W：<prefix> 即 apps/qgis* 前缀
         candidates.append(f"{prefix}/svg/arrows/NorthArrow_02.svg")
+        # Debian/Ubuntu（QGIS_PREFIX_PATH=/usr）：SVG 在 <prefix>/share/qgis/svg/
+        candidates.append(f"{prefix}/share/qgis/svg/arrows/NorthArrow_02.svg")
+        candidates.append(f"{prefix}/share/qgis-ltr/svg/arrows/NorthArrow_02.svg")
     root = prefix.rsplit("/apps/", 1)[0] if "/apps/" in prefix else None
     if root:
         candidates += sorted(glob.glob(f"{root}/apps/qgis*/svg/arrows/NorthArrow_02.svg"))
+    # POSIX 发行版常见安装路径（Debian/Ubuntu apt 安装后的固定位置）
+    candidates += [
+        "/usr/share/qgis/svg/arrows/NorthArrow_02.svg",
+        "/usr/share/qgis-ltr/svg/arrows/NorthArrow_02.svg",
+    ]
     candidates += sorted(glob.glob(r"C:\Program Files\QGIS *\apps\qgis*\svg\arrows\NorthArrow_02.svg"))
     for c in candidates:
         if os.path.isfile(c.replace("/", os.sep) if os.name == "nt" else c):
             return c
+    if os.name != "nt":
+        _log(
+            "[!] 未找到指北针 SVG（NorthArrow_02.svg）。"
+            "POSIX 上安装 QGIS 后 SVG 位于 /usr/share/qgis/svg/arrows/，"
+            "请确认已安装 QGIS（Debian/Ubuntu: apt install qgis / python3-qgis），"
+            "或设置 QGIS_PREFIX_PATH 指向安装前缀。"
+        )
     return None
 
 
@@ -784,7 +800,12 @@ def main() -> None:
             try:
                 svg = _north_arrow_svg()
                 if not svg:
-                    raise RuntimeError("未找到指北针 SVG（NorthArrow_02.svg）")
+                    tip = (
+                        "POSIX 上安装 QGIS 后 SVG 位于 /usr/share/qgis/svg/arrows/"
+                        if os.name != "nt"
+                        else "请确认 QGIS 安装完整（apps/qgis*/svg/arrows/）"
+                    )
+                    raise RuntimeError(f"未找到指北针 SVG（NorthArrow_02.svg）；{tip}")
                 na = QgsLayoutItemPicture(layout)
                 na.setPicturePath(svg)
                 layout.addLayoutItem(na)

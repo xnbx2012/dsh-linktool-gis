@@ -60,36 +60,45 @@ Harness Web 界面的 **设置 → LinkTool-GIS** 提供各 Hook 的单独开关
 
 ### 运行环境
 
-- Windows 10/11，Node.js 22 或更高版本，npm 能连接 npm 包源。
+- Windows 10/11 或 Linux/macOS，Node.js 22 或更高版本，npm 能连接 npm 包源。
 - Python 3.12 或更高版本，以及 `uv`/`uvx`（推荐通过 uv 管理服务自己的环境）。
-- Git for Windows：原 Skill 命令使用 Bash 语法；Windows Harness 默认只有 PowerShell，本插件通过 Git Bash 适配这些命令。
-- 系统 `tar` 可用（Windows 10/11 通常自带）。安装脚本用它恢复完整源资源。
-- GIS 引擎按需安装（设置页可逐个开关）：**ArcGIS Pro**（arcpy 引擎，默认关闭）需要授权安装；**QGIS** 安装后 qgis 引擎自动可用；**Whitebox/GDAL/内置** 引擎随 Python 依赖自动就绪，无需额外安装。不装任何外部 GIS 软件时，内置 + Whitebox + GDAL 三个引擎仍可完成大多数矢量/栅格分析。
+- Windows 额外需要 Git for Windows：原 Skill 命令使用 Bash 语法；Windows Harness 默认只有 PowerShell，本插件通过 Git Bash 适配这些命令。Linux/macOS 自带 bash/sh，无需额外安装。
+- 系统 `tar` 可用（Windows 10/11 与主流 Linux 发行版均自带）。安装脚本用它恢复完整源资源。
+- GIS 引擎按需安装（设置页可逐个开关）：**ArcGIS Pro**（arcpy 引擎，默认关闭）需要授权安装（**仅限 Windows**——ArcGIS Pro 不提供 Linux/macOS 版本）；**QGIS** 安装后 qgis 引擎自动可用（Linux 上推荐发行版包：Debian/Ubuntu `apt install qgis qgis-providers qgis-plugin-grass`，并另装 `python3-qgis` 以启用 QGIS 制图后端）；**Whitebox/GDAL/内置** 引擎随 Python 依赖自动就绪（Linux 栅格工具建议补装发行版 `gdal-bin`、`whitebox`），无需额外安装。不装任何外部 GIS 软件时，内置 + Whitebox + GDAL 三个引擎仍可完成大多数矢量/栅格分析。
 - 制图双后端（`create_map`）：ArcGIS Pro 可用时经 ArcPy 出图，否则自动落到 QGIS 后端（`qgis_draw_map.py`，同一 JSON 契约；底图按地图范围抓 XYZ 瓦片拼贴，Esri 影像/地形/OSM）。后端由设置页引擎开关决定，结果带 `backend` 字段，两个后端均未可用时报明确错误。
 - Harness 需要配置自己的模型账户/API。MCP 的业务 API 凭据也是接收方自己的配置。
 
 可以用这些命令检查前置环境：
 
-```powershell
+```bash
 node --version
 npm --version
-python --version
+python3 --version   # Windows 上用 python --version
 uv --version
 tar --version
 ```
 
-如果 uv 未安装，可按照 [uv 官方 Windows 安装说明](https://docs.astral.sh/uv/getting-started/installation/) 安装。Git 从 [Git for Windows](https://gitforwindows.org/) 安装。
+如果 uv 未安装，可按照 [uv 官方安装说明](https://docs.astral.sh/uv/getting-started/installation/) 安装（Windows 用户另需从 [Git for Windows](https://gitforwindows.org/) 安装 Git）。
 
 ### 一条安装命令
 
-克隆本仓库（或解压发布包）后，进入 **dsh 文件夹**，在 PowerShell 执行：
+克隆本仓库（或解压发布包）后，进入 **dsh 文件夹**：
+
+Linux / macOS（bash）：
+
+```bash
+node scripts/archive-resources.mjs   # 克隆仓库时需要；发布包内已自带归档
+./install.sh web
+```
+
+Windows（PowerShell）：
 
 ```powershell
 node scripts/archive-resources.mjs   # 克隆仓库时需要；发布包内已自带归档
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -Profile web
 ```
 
-这条命令先安装锁定的 Node 依赖，再安装插件。已有依赖时也可运行 `npm run install:plugin -- web`。
+这条命令先安装锁定的 Node 依赖，再安装插件。已有依赖时也可运行 `npm run install:plugin -- web`（三个平台通用）。
 
 安装器使用固定版本的 Harness CLI，将本目录安装到 `web` profile，自动加入 bundle，并恢复 npm/pnpm 默认会忽略的完整源资源。默认所有 hooks 和 8 个 MCP 配置都启用。**接收方不需要旁边另放一个原始 `plugin` 文件夹。**
 
@@ -105,7 +114,7 @@ npm run install:plugin -- linktool
 
 推荐用安装脚本原地更新（覆盖安装，无需先卸载）：
 
-```powershell
+```bash
 git pull   # 或解压新版本包后进入新目录
 npm ci
 npm run install:plugin -- web
@@ -119,7 +128,7 @@ npm run install:plugin -- web
 
 启动（请在你的 GIS 项目目录运行，工作目录是数据工作空间）：
 
-```powershell
+```bash
 npx @deepseek-ai/dsh@latest --profile web
 ```
 
@@ -127,7 +136,9 @@ npx @deepseek-ai/dsh@latest --profile web
 
 ### 配置接收方自己的环境
 
-在启动 Harness 的 PowerShell 中按需设置；以下全部是示例占位值：
+在启动 Harness 的终端（Windows 用 PowerShell，Linux/macOS 用 bash）中按需设置；以下全部是示例占位值。
+
+Windows（PowerShell）：
 
 ```powershell
 $env:DEEPSEEK_API_KEY = '接收方自己的模型 API key'
@@ -138,11 +149,22 @@ $env:MINIMAX_API_HOST = '接收方的 MiniMax API 地址'
 $env:ARCGIS_PRO_PATH = 'C:\Program Files\ArcGIS\Pro'
 ```
 
+Linux / macOS（bash）：
+
+```bash
+export DEEPSEEK_API_KEY='接收方自己的模型 API key'
+export AMAP_MAPS_API_KEY='接收方自己的高德 key'
+export SILICONFLOW_API_KEY='接收方自己的 SiliconFlow key'
+export MINIMAX_API_KEY='接收方自己的 MiniMax key'
+export MINIMAX_API_HOST='接收方的 MiniMax API 地址'
+# ARCGIS_PRO_PATH 仅 Windows 需要（ArcGIS Pro 不提供 Linux/macOS 版本）
+```
+
 **环境变量是必需的**：仓库内的 `config/mcp.json` 只含 `${ENV_VAR}` 占位符，未设置时对应凭据为空，相关 MCP 无法认证。
 
 `ARCGIS_PRO_PATH` 指向 **Pro 安装目录**，不是 `python.exe`（仅 arcpy 引擎需要；未设置时插件保留原有的自动查找逻辑）。
 
-Git 不在默认位置时：
+Git 不在默认位置时（仅 Windows）：
 
 ```powershell
 $env:LINKTOOL_BASH = 'D:\Git\bin\bash.exe'
@@ -150,14 +172,14 @@ $env:LINKTOOL_BASH = 'D:\Git\bin\bash.exe'
 
 原 memory MCP 是局域网服务。换成对方能访问的实际服务：
 
-```powershell
-$env:LINKTOOL_MEMORY_URL = 'http://实际服务器地址:端口/mcp'
-$env:LINKTOOL_MEMORY_USERNAME = '用户名（X-Auth-Username 头）'
-$env:LINKTOOL_MEMORY_PASSWORD = '密码（X-Auth-Password 头）'
-$env:LINKTOOL_MEMORY_AUTHORIZATION = '或直接提供 Authorization 请求头值'
+```bash
+export LINKTOOL_MEMORY_URL='http://实际服务器地址:端口/mcp'
+export LINKTOOL_MEMORY_USERNAME='用户名（X-Auth-Username 头）'
+export LINKTOOL_MEMORY_PASSWORD='密码（X-Auth-Password 头）'
+export LINKTOOL_MEMORY_AUTHORIZATION='或直接提供 Authorization 请求头值'
 ```
 
-环境变量优先于配置文件中的占位符值。永久配置也可以修改**已安装副本**的 `config/mcp.json`（或本仓库副本后重新安装）；默认位置是 `%USERPROFILE%\.dsh\profiles\web\node_modules\@linktool\dsh-plugin`。设置过 `DSH_HOME` 时，该路径改在其下。修改配置后重启 Harness。
+环境变量优先于配置文件中的占位符值。永久配置也可以修改**已安装副本**的 `config/mcp.json`（或本仓库副本后重新安装）；默认位置是 `~/.dsh/profiles/web/node_modules/@linktool/dsh-plugin`（Windows 在 `%USERPROFILE%\.dsh\...`）。设置过 `DSH_HOME` 时，该路径改在其下。修改配置后重启 Harness。
 
 ### 准备 GIS 项目目录
 
@@ -174,7 +196,7 @@ $env:LINKTOOL_MEMORY_AUTHORIZATION = '或直接提供 Authorization 请求头值
 
 在开发目录执行：
 
-```powershell
+```bash
 npm run build
 npm run release
 ```
@@ -187,7 +209,7 @@ npm run release
 
 如果改过适配层或资源，请先构建和重建归档，再安装更新：
 
-```powershell
+```bash
 npm run build
 node scripts/archive-resources.mjs
 npm run install:plugin -- web
@@ -197,9 +219,9 @@ Harness 的 `file:` 安装是副本，开发目录的修改不会自动进入已
 
 ## 3. 如何检查安装
 
-在解压后的 `dsh` 目录运行：
+在解压后的 `dsh` 目录运行（三个平台通用）：
 
-```powershell
+```bash
 npm run doctor
 npm run check
 npm run verify
@@ -211,13 +233,19 @@ npm run check:mcp
 - `verify` 校验全部源文件 SHA-256（LF 行尾基准）和提示词正文哈希；并检查五引擎 guard 拦截矩阵、引擎开关的扁平 volatile 写入路径；在真实 Harness 中使用本地模拟模型检查 6 个角色、正文预加载、父会话隔离、Skill、启用 hooks 的资源读取/OfficeCLI 执行，以及 Workflow 缓存恢复与重试限制。不消耗模型 API。
 - `check:mcp` 真正连接 MCP 并列出工具，需要联网，首次可能下载 Python/npm 依赖；不执行 GIS 运算或收费图片操作。
 
-需要额外验证真实 Harness 中的 MCP 注册与 ArcPy 链路时，可运行下面的扩展检查。ArcPy 检查仅创建并处理 `.runtime` 下的独立测试数据，不处理你的业务数据：
+需要额外验证真实 Harness 中的 MCP 注册与 ArcPy 链路时，可运行下面的扩展检查。ArcPy 检查仅创建并处理 `.runtime` 下的独立测试数据，不处理你的业务数据（Windows）：
 
 ```powershell
 $env:LINKTOOL_VERIFY_MCP = '1'
 $env:LINKTOOL_VERIFY_GIS = '1'
 npm run verify
 Remove-Item Env:LINKTOOL_VERIFY_MCP, Env:LINKTOOL_VERIFY_GIS
+```
+
+Linux/macOS 上的对应写法：
+
+```bash
+LINKTOOL_VERIFY_MCP=1 npm run verify
 ```
 
 本机检查记录：7 个 MCP 已成功握手（高德、ArcGIS、Bing、color-style、knowledge-db、PDF、MiniMax）；原局域网 memory 服务目前 `fetch failed`。握手通过说明进程和 MCP 接口可用，**不表示 ArcPy 运算、第三方 key 权限及所有业务请求都已实测通过**。

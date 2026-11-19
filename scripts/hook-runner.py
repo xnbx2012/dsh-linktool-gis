@@ -6,6 +6,23 @@ import os
 import inspect
 
 source = sys.argv[1]
+
+
+def _expand_platform_vars(value: str) -> str:
+    """按平台展开路径里的临时目录变量后再走 expandvars。
+
+    os.path.expandvars 对未定义变量保留字面量，而 protected_dirs.json 里的
+    ${TEMP}（Windows）在 Linux 上未定义、${TMPDIR}（POSIX）在 Windows 上未定义，
+    字面量残留会让对应规则匹配不到任何真实路径。这里做双向回退。
+    """
+    if os.name == "nt":
+        value = value.replace("${TMPDIR}", os.environ.get("TEMP", os.environ.get("TMP", "")))
+    else:
+        value = value.replace("${TEMP}", os.environ.get("TMPDIR", "/tmp"))
+        value = value.replace("${TMP}", os.environ.get("TMPDIR", "/tmp"))
+    return os.path.expandvars(value)
+
+
 namespace = runpy.run_path(source, run_name="linktool_migrated_hook")
 if "normalize_path" in namespace:
     normalize = namespace["normalize_path"]
@@ -13,7 +30,7 @@ if "normalize_path" in namespace:
     # Source is_skills_directory calls normalize_path(path, "") although its
     # declaration accepts only path. Preserve its intended bundled-skills allow rule.
     def compatible_normalize(path, _cwd=""):
-        expanded = os.path.expandvars(path)
+        expanded = _expand_platform_vars(path)
         return normalize(expanded, _cwd) if parameters > 1 else normalize(expanded)
     normalize.__globals__["normalize_path"] = compatible_normalize
 if "determine_status" in namespace:

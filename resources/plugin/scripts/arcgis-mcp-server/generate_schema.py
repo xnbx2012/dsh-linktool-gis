@@ -268,6 +268,22 @@ def _export_qgis() -> dict[str, Any]:
 
 
 # ─── 主函数 ────────────────────────────────────────────────────────────────────
+def _host_fingerprint() -> dict[str, str]:
+    """记录生成 schema 的宿主特征，供缓存一致性校验。
+
+    schema.json 里的工具目录与宿主安装的 GIS 软件强相关：另一台机器（如
+    Windows + QGIS 4.x）生成的缓存在本机（Linux + QGIS 3.22）上会列出大量
+    本机根本调不通的算法（虚假可用）。读取缓存前先比对。
+    """
+    import platform
+
+    return {
+        "platform": sys.platform,
+        "machine": platform.machine(),
+        "python": f"{sys.version_info.major}.{sys.version_info.minor}",
+    }
+
+
 def generate_schema(output_path: str, force: bool = False) -> dict[str, Any]:
     """生成/更新 schema.json。
 
@@ -285,9 +301,33 @@ def generate_schema(output_path: str, force: bool = False) -> dict[str, Any]:
         try:
             mtime = datetime.fromtimestamp(os.path.getmtime(output_path))
             if (now - mtime) < timedelta(days=7):
-                logger.info("[generate_schema] schema.json 缓存未过期（<7天），跳过生成")
                 with open(output_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    cached = json.load(f)
+                cached_host = cached.get("host") or {}
+                if cached_host != _host_fingerprint():
+                    logger.info(
+                        "[generate_schema] schema.json 缓存来自其它宿主（%s ≠ %s），重新生成",
+                        cached_host, _host_fingerprint(),
+                    )
+                else:
+                    cached_qgis = cached.get("engines", {}).get("qgis", {})
+                    # 两种失效场景不能继续沿用 7 天缓存：
+                    # (a) 缓存时 QGIS 不可用（qgis 段为空），但现在 QGIS 已装好；
+                    # (b) 缓存来自其它宿主（见上）。(a) 在这里立即补救。
+                    if cached_qgis or not _find_qgis_bat():
+                        live_qgis = {}
+                        try:
+                            from qgis_engine import list_qgis_algorithms  # type: ignore
+
+                            live_qgis = list_qgis_algorithms()
+                        except Exception:  # noqa: BLE001
+                            pass
+                        if live_qgis or cached_qgis:
+                            logger.info("[generate_schema] schema.json 缓存未过期（<7天），跳过生成")
+                            return cached
+                    logger.info(
+                        "[generate_schema] 缓存 qgis 段为空但本机 QGIS 现在可用，立即重新生成"
+                    )
         except Exception:  # noqa: BLE001
             pass
 
@@ -304,6 +344,7 @@ def generate_schema(output_path: str, force: bool = False) -> dict[str, Any]:
             "gdal": gdal,
             "qgis": qgis,
         },
+        "host": _host_fingerprint(),
         "generated_at": now.isoformat(),
         "wbt_count": len(whitebox),
         "inner_count": len(inner),

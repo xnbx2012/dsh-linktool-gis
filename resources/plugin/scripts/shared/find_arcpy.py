@@ -8,6 +8,7 @@
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -106,6 +107,14 @@ def find_py_interpreter() -> str | None:
     except ImportError:
         pass
 
+    # arcpy 引擎仅限 Windows：ArcGIS Pro 不提供 Linux/macOS 版本。
+    # 非 Windows 上直接给明确提示，而不是让调用方拿到 None 后自己猜。
+    if os.name != "nt":
+        print(
+            "find_arcpy: 非 Windows 平台，arcpy 引擎不可用（ArcGIS Pro 为 Windows 专属，"
+            "Linux/macOS 请使用 qgis/gdal/whitebox/inner 引擎）",
+            file=sys.stderr,
+        )
     return None
 
 

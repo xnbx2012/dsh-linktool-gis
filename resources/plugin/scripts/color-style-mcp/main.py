@@ -4,6 +4,11 @@ ArcGIS MCP Server
 A FastMCP-based server for ArcGIS operations via ArcPy.
 Since the current environment doesn't have arcpy, all GIS operations
 are executed through subprocess calls to ArcGIS Pro's Python interpreter.
+
+【历史遗留，未被任何入口引用】本文件是早期从旧 main.py 复制出的草稿，仓库内
+没有任何启动配置/脚本指向它（config/mcp.json 的 arcgis-mcp-server 指向
+arcgis-mcp-server/main.py，color-style 指向 color_style_server.py）。
+arcpy 解释器探测请统一用 shared/find_arcpy.py，不要改这份。
 """
 
 import json

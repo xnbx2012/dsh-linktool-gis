@@ -132,16 +132,36 @@ def qgis_python_launcher() -> str | None:
     """QGIS 自带 Python 的启动器，用于**子进程**运行 PyQGIS 脚本（如 color-style 制图）。
 
     Windows 返回安装 bin 目录下的 python-qgis*.bat（o4w_env + QGIS_PREFIX_PATH +
-    PYTHONPATH 全部就绪，PyQt ABI 与宿主无关）；POSIX 返回 PATH 上的 python3
-    （Debian 系 python3-qgis 装好后可直接 import qgis）。不可用返回 None。
-    进程级只探测一次。
+    PYTHONPATH 全部就绪，PyQt ABI 与宿主无关）；POSIX 返回 PATH 上的 python3，
+    且用一次极短探测（`python3 -c "import qgis"`）确认 PyQGIS 真正可 import
+    （Debian 系需装 python3-qgis，缺包时 python3 存在但 import 失败）。
+    不可用返回 None。进程级只探测一次（探测结果缓存，正常路径不被拖慢）。
     """
     global _QGIS_PY_LAUNCHER, _QGIS_PY_LAUNCHER_PROBED
     if _QGIS_PY_LAUNCHER_PROBED:
         return _QGIS_PY_LAUNCHER
     _QGIS_PY_LAUNCHER_PROBED = True
     if os.name != "nt":
-        _QGIS_PY_LAUNCHER = shutil.which("python3")
+        py = shutil.which("python3")
+        if not py:
+            logger.warning("[qgis] qgis_python_launcher: 未找到 python3")
+            return None
+        try:
+            proc = subprocess.run(
+                [py, "-c", "import qgis"], capture_output=True,
+                timeout=30, env=_qgis_cli_env(),
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[qgis] qgis_python_launcher: 探测 `import qgis` 异常: %s", e)
+            return None
+        if proc.returncode != 0:
+            logger.warning(
+                "[qgis] qgis_python_launcher: %s 无法 import qgis（rc=%s）；"
+                "POSIX 上运行 PyQGIS 需安装 python3-qgis（如 apt install python3-qgis）",
+                py, proc.returncode,
+            )
+            return None
+        _QGIS_PY_LAUNCHER = py
         return _QGIS_PY_LAUNCHER
     bat = _find_qgis_bat()
     candidates: list[str] = []
@@ -158,7 +178,10 @@ def qgis_python_launcher() -> str | None:
 
 # ─── POSIX CLI 模式（Linux/macOS）─────────────────────────────────────────────
 # 进程内 QgsApplication 初始化依赖 Windows OSGeo4W 目录结构（apps/qgis、WinDLL 预加载等），
-# Linux/macOS 上不可行；改为经 PATH 上的 `qgis_process` 子进程执行（list --json / run --json）。
+# Linux/macOS 上不可行；改为经 CLI 子进程执行（list --json / run --json）。
+# 注意：Debian/Ubuntu 的 /usr/bin/qgis_process 是 shell 包装脚本（source /etc/default/qgis
+# 后转发参数），QGIS 3.22 上该脚本会透传一个 .bin 不认识的 `--noversioncheck` 直接失败；
+# 真正的 ELF 可执行文件是同目录的 qgis_process.bin。发现逻辑按候选顺序探测，命中第一个可用者。
 _QGIS_CLI: str | None = None
 _QGIS_CLI_PROBED = False
 
@@ -166,27 +189,130 @@ _QGIS_CLI_PROBED = False
 _OUTPUT_KEY_HINTS = ("out", "output", "destination", "sink", "result", "target")
 
 
+def _qgis_cli_candidates() -> list[str]:
+    """收集 qgis_process 启动器候选（POSIX，按优先级去重保持顺序）。
+
+    1) 环境变量 QGIS_PROCESS_CLI（用户显式指定，可为绝对路径）；
+    2) shutil.which("qgis_process")；
+    3) Debian/Ubuntu 布局：若命中的是包装脚本，追加同目录的 <path>.bin
+       （/usr/bin/qgis_process → /usr/bin/qgis_process.bin）。
+    """
+    candidates: list[str] = []
+    env_path = os.environ.get("QGIS_PROCESS_CLI", "").strip()
+    if env_path:
+        candidates.append(env_path)
+    which = shutil.which("qgis_process")
+    if which:
+        candidates.append(which)
+        # Debian/Ubuntu 包装脚本 → 真实 ELF 可执行文件（同目录 <path>.bin）
+        bin_path = which + ".bin"
+        if bin_path not in candidates:
+            candidates.append(bin_path)
+    # 去重保持顺序，仅保留存在的文件
+    seen: set[str] = set()
+    out: list[str] = []
+    for c in candidates:
+        if c and c not in seen and os.path.isfile(c):
+            seen.add(c)
+            out.append(c)
+    return out
+
+
+def _probe_qgis_cli_candidate(cli: str) -> tuple[bool, str]:
+    """探测一个候选启动器是否真正可用：跑 `--version`，要求 rc==0 且输出含 QGIS。
+
+    Returns:
+        (可用性, 失败原因)。可用时原因恒为空串。
+    """
+    try:
+        proc = subprocess.run(
+            [cli, "--version"], capture_output=True, text=True,
+            timeout=30, env=_qgis_cli_env(),
+        )
+    except subprocess.TimeoutExpired:
+        return False, "探测超时（>30s）"
+    except FileNotFoundError:
+        return False, "文件不存在"
+    except Exception as e:  # noqa: BLE001
+        return False, f"启动异常: {e}"
+    output = f"{proc.stdout}\n{proc.stderr}"
+    if proc.returncode != 0:
+        return False, f"rc={proc.returncode}, stderr={(proc.stderr or '').strip()[:120]}"
+    if "QGIS" not in output:
+        return False, f"输出不含 QGIS 标识: {output.strip()[:120]}"
+    return True, ""
+
+
 def _find_qgis_cli() -> str | None:
-    """POSIX：PATH 上的 qgis_process。进程级只探测一次；Windows 返回 None（走 bat 进程内路径）。"""
+    """POSIX：探测通过的 qgis_process 启动器（进程级只探一次，缓存第一个可用者）。
+
+    Windows 返回 None（走 bat 进程内路径）。全部候选失败时记 warning 并列出
+    各候选与失败原因，返回 None。
+    """
     global _QGIS_CLI, _QGIS_CLI_PROBED
     if _QGIS_CLI_PROBED:
         return _QGIS_CLI
     _QGIS_CLI_PROBED = True
     if os.name == "nt":
         return None
-    _QGIS_CLI = shutil.which("qgis_process")
-    if _QGIS_CLI:
-        logger.info("[qgis] CLI mode via %s", _QGIS_CLI)
-    return _QGIS_CLI
+    for cli in _qgis_cli_candidates():
+        ok, reason = _probe_qgis_cli_candidate(cli)
+        if ok:
+            _QGIS_CLI = cli
+            logger.info("[qgis] CLI mode via %s", cli)
+            return _QGIS_CLI
+        logger.warning("[qgis] 候选 qgis_process 不可用：%s（%s）", cli, reason)
+    candidates = _qgis_cli_candidates()
+    logger.warning(
+        "[qgis] 未找到可用的 qgis_process 启动器；候选与失败原因：%s",
+        "; ".join(f"{c}: {_probe_qgis_cli_candidate(c)[1]}" for c in candidates) or "（无候选）",
+    )
+    return None
+
+
+def _ensure_utf8_cpg(path: str) -> None:
+    """把 QGIS 产出的 .shp 同目录 .cpg 改写为 UTF-8（失败仅 warning，不影响分析结果）。
+
+    原因：QGIS/Qt 写 ESRI Shapefile 时 .cpg 内容是 `system`（跟随系统 locale），
+    而 GDAL 读端不认 `system`，会按 Latin-1 解码 → 中文字段名（如 `名称`）与属性值
+    全部乱码（`å ç§`）。QGIS 内部实际按 UTF-8 编码写出，显式声明 UTF-8 即可正确读取。
+    """
+    try:
+        p = str(path)
+        if not p.lower().endswith(".shp"):
+            return
+        cpg = os.path.splitext(p)[0] + ".cpg"
+        if os.path.isfile(cpg):
+            with open(cpg, "r", encoding="ascii", errors="ignore") as f:
+                content = (f.read() or "").strip()
+            if content.lower() != "utf-8":
+                with open(cpg, "w", encoding="ascii") as f:
+                    f.write("UTF-8")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[qgis] 改写 .cpg 为 UTF-8 失败（%s）: %s", path, e)
 
 
 def _qgis_cli_env() -> dict[str, str]:
-    """qgis_process 子进程环境：headless 平台后端 + UTF-8。"""
+    """qgis_process 子进程环境：headless 平台后端 + UTF-8 + GRASS 运行库。
+
+    POSIX 直接调 qgis_process.bin（绕过 Debian 包装脚本）时，grass7 provider 的
+    依赖库（libgrass_*）不在默认链接路径上；Debian 包装脚本靠 qgis-plugin-grass
+    注入 LD_LIBRARY_PATH，这里用 glob 找系统 GRASS 运行库目录自行补上。
+    """
     env = dict(os.environ)
     env.setdefault("QT_QPA_PLATFORM", "offscreen")  # 无显示环境（服务器）必需
     env.setdefault("GDAL_FILENAME_IS_UTF8", "YES")
     env.setdefault("PYTHONIOENCODING", "utf-8")
     env.setdefault("PYTHONUTF8", "1")
+    # GRASS 运行库（如 /usr/lib/grass78/lib）：命中才追加，已存在不重复加
+    ld = env.get("LD_LIBRARY_PATH", "")
+    existing = [p for p in ld.split(os.pathsep) if p]
+    for grass_lib in sorted(glob.glob("/usr/lib/grass*/lib")):
+        if os.path.isdir(grass_lib) and grass_lib not in existing:
+            ld = grass_lib + (os.pathsep + ld if ld else "")
+            existing.insert(0, grass_lib)
+    if ld:
+        env["LD_LIBRARY_PATH"] = ld
     return env
 
 
@@ -289,7 +415,13 @@ def _cli_run_tool(cli: str | None, algo_id: str, parameters: dict[str, Any]) -> 
     started = time.perf_counter()
 
     def _invoke(with_json: bool):
-        cmd = [cli, "run"] + (["--json"] if with_json else []) + [algo_id, "--"] + kvs
+        if os.name != "nt":
+            # POSIX qgis_process（至少 QGIS 3.22）：KEY=VALUE 直接跟在 algo_id 后即可，
+            # 加 `--` 分隔符会被当作"参数已结束、无参数"报 mandatory 缺失。Windows
+            # OSGeo4W 的 qgis_process.bat 保留原 `--` 用法不变。
+            cmd = [cli, "run"] + (["--json"] if with_json else []) + [algo_id] + kvs
+        else:
+            cmd = [cli, "run"] + (["--json"] if with_json else []) + [algo_id, "--"] + kvs
         return subprocess.run(
             cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
             timeout=QGIS_RUN_TIMEOUT, env=_qgis_cli_env(),
@@ -345,6 +477,10 @@ def _cli_run_tool(cli: str | None, algo_id: str, parameters: dict[str, Any]) -> 
             "请在 parameters 中显式给出 OUTPUT=<完整路径> 后重试。",
             audit=audit, qgis_log=log_lines,
         )
+    # QGIS 写 .shp 时 .cpg 是 `system`，GDAL 读端只认 `UTF-8`：统一改写，
+    # 否则中文字段名/属性值经 GDAL 读出是 Latin-1 乱码。失败不影响本次结果。
+    for p in output_paths:
+        _ensure_utf8_cpg(p)
     msg = f"QGIS 算法 '{algo_id}' 执行完成。"
     logger.info("[qgis-audit] cli_algorithm_completed algo=%s audit=%s", algo_id, audit)
     return _ok(output_paths, msg, qgis_log=log_lines, audit=audit)

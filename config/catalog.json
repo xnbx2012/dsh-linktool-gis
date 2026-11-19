@@ -779,11 +779,11 @@
     }
   ],
   "workflows": [
+    "workflows/README.md",
     "workflows/gis-data-profile-only.md",
     "workflows/gis-debug-analysis.md",
     "workflows/gis-standard-analysis.md",
     "workflows/gis-tool-execution-only.md",
-    "workflows/gis-visual-report.md",
-    "workflows/README.md"
+    "workflows/gis-visual-report.md"
   ]
 }

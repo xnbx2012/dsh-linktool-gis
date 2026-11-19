@@ -89,14 +89,19 @@ def load_protected_dirs() -> List[dict]:
         return []
 
 def normalize_path(path: str, cwd: str = "") -> str:
-    """规范化路径，转为绝对路径并统一大小写"""
+    """规范化路径，转为绝对路径；Windows 上统一小写（文件系统大小写不敏感）。
+
+    早先无条件 .lower() 是 Windows 假设的泄漏：Linux 上 /Data 与 /data 是
+    不同目录，混同会误拦/漏拦。
+    """
+    def _case(p: str) -> str:
+        return p.lower() if os.name == "nt" else p
     try:
-        # 如果是相对路径，先转换为绝对路径
         if cwd and not os.path.isabs(path):
             path = os.path.join(cwd, path)
-        return os.path.normpath(os.path.abspath(path)).lower()
-    except:
-        return path.lower() if path else ""
+        return os.path.normpath(os.path.abspath(_case(path)))
+    except Exception:
+        return _case(path) if path else ""
 
 def get_top_dir(path: str, cwd: str) -> Optional[str]:
     """获取路径在cwd下的顶级目录名"""
@@ -108,7 +113,9 @@ def get_top_dir(path: str, cwd: str) -> Optional[str]:
         if not path_norm.startswith(cwd_norm + os.sep) and path_norm != cwd_norm:
             return None
 
-        rel_path = os.path.relpath(path_norm, cwd_norm).lower()
+        rel_path = os.path.relpath(path_norm, cwd_norm)
+        if os.name == "nt":
+            rel_path = rel_path.lower()
         return rel_path.split(os.sep)[0] if os.sep in rel_path else rel_path
     except:
         return None

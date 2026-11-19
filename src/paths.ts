@@ -29,7 +29,11 @@ export function childEnvironment(cwd: string, role = ''): NodeJS.ProcessEnv {
     USER_HOME: process.env.USERPROFILE ?? process.env.HOME ?? cwd,
     UV_PROJECT_ENVIRONMENT: join(packageRoot, '.runtime', 'hooks') };
   const bin = join(resourceRoot, 'bin');
-  const uvBin = join(process.env.USERPROFILE ?? '', '.local', 'bin');
-  env.PATH = [bin, ...(existsSync(uvBin) ? [uvBin] : []), process.env.PATH ?? ''].join(process.platform === 'win32' ? ';' : ':');
+  // uv 官方安装器把 uv/uvx 放在 ~/.local/bin（Windows 在 %USERPROFILE%\.local\bin）。
+  // 早先这里只认 USERPROFILE，Linux 上得到相对路径 ".local/bin"，existsSync 相对 cwd 解析恒为假，
+  // 于是 ~/.local/bin 进不了子进程 PATH —— 从 systemd/.desktop 启动（PATH 不含它）时全部 MCP server 启动即 ENOENT(uv)。
+  const userHome = process.env.USERPROFILE ?? process.env.HOME ?? '';
+  const uvBin = join(userHome, '.local', 'bin');
+  env.PATH = [bin, ...(userHome && existsSync(uvBin) ? [uvBin] : []), process.env.PATH ?? ''].join(process.platform === 'win32' ? ';' : ':');
   return env;
 }

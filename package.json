@@ -22,7 +22,8 @@
     "tsconfig.json",
     "package-lock.json",
     "resources-full.tar.gz",
-    "install.ps1"
+    "install.ps1",
+    "install.sh"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",

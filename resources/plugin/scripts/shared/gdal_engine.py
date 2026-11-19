@@ -216,23 +216,39 @@ def _gdal_bin(name: str) -> str:
     return os.path.join(_probe_gdal_bin_dir() or "", name + suffix)
 
 
+def _exe(name: str) -> str:
+    """按平台生成 CLI 可执行文件名（Windows 带 .exe，POSIX 无后缀）——供错误提示使用。"""
+    return name + (".exe" if os.name == "nt" else "")
+
+
 _GDAL_SCRIPTS_DIR: str | None = None
 _GDAL_SCRIPTS_PROBED = False
 
 
 def _probe_gdal_scripts_dir() -> str | None:
     """定位 GDAL Python 脚本包装目录（gdal_calc / gdal_polygonize / gdal_proximity /
-    gdal_retile / gdal_pansharpen 等 .bat）。
+    gdal_retile / gdal_pansharpen 等）。
 
-    优先级：环境变量 GDAL_SCRIPTS_DIR > QGIS apps/Python312/Scripts/。
+    探测文件名按平台取：gdal_polygonize.bat（Windows QGIS Scripts 目录）/
+    gdal_polygonize.py（Linux gdal-bin 等发行版包）。两种形式任一存在即接受。
+
+    优先级：环境变量 GDAL_SCRIPTS_DIR > QGIS apps/Python312/Scripts/（Windows）>
+    POSIX PATH 上的 gdal_polygonize.py（所在目录即 scripts dir）。
     """
     global _GDAL_SCRIPTS_DIR, _GDAL_SCRIPTS_PROBED
     if _GDAL_SCRIPTS_PROBED:
         return _GDAL_SCRIPTS_DIR
     _GDAL_SCRIPTS_PROBED = True
 
+    # 标记文件按平台取主形态；探测时兼容两种形式（.bat 优先 Windows，.py 优先 POSIX）
+    marker_bat = "gdal_polygonize.bat"
+    marker_py = "gdal_polygonize.py"
+
+    def _has_marker(d: str) -> bool:
+        return os.path.isfile(os.path.join(d, marker_bat)) or os.path.isfile(os.path.join(d, marker_py))
+
     env_dir = os.environ.get("GDAL_SCRIPTS_DIR", "").strip()
-    if env_dir and os.path.isfile(os.path.join(env_dir, "gdal_polygonize.bat")):
+    if env_dir and _has_marker(env_dir):
         _GDAL_SCRIPTS_DIR = env_dir
         return _GDAL_SCRIPTS_DIR
 
@@ -241,9 +257,16 @@ def _probe_gdal_scripts_dir() -> str | None:
     if bin_dir and "bin" in bin_dir:
         root = os.path.dirname(bin_dir)
         cand = os.path.join(root, "apps", "Python312", "Scripts")
-        if os.path.isfile(os.path.join(cand, "gdal_polygonize.bat")):
+        if _has_marker(cand):
             _GDAL_SCRIPTS_DIR = cand
             return _GDAL_SCRIPTS_DIR
+
+    # POSIX（Linux/macOS，apt gdal-bin / 发行版包安装）：PATH 上探测 gdal_polygonize.py，
+    # 其所在目录即脚本目录（/usr/bin 下同时有 gdal_proximity.py / gdal_retile.py 等）
+    found = shutil.which(marker_py) or shutil.which(marker_bat)
+    if found:
+        _GDAL_SCRIPTS_DIR = os.path.dirname(found)
+        return _GDAL_SCRIPTS_DIR
     return None
 
 
@@ -321,8 +344,15 @@ def _run_script_bat(name: str, args: list[str], timeout: int = GDAL_RUN_TIMEOUT)
                 f"GDAL 脚本包装未找到：{name}.py（请安装 gdal-bin 或设置 GDAL_SCRIPTS_DIR）。"
             )
         try:
+            # 发行版脚本（gdal-bin）自带 shebang 指向系统 python3，且依赖系统包里的
+            # osgeo_utils（python3-gdal）。用当前解释器（venv/其它 ABI）跑会 ImportError，
+            # 因此脚本可执行时直接按 shebang 执行，不可执行才退回当前解释器。
+            if os.access(script, os.X_OK):
+                cmd = [script]
+            else:
+                cmd = [_sys.executable, script]
             proc = subprocess.run(
-                [_sys.executable, script] + args,
+                cmd + args,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
